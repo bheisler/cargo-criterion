@@ -10,3 +10,5 @@ edition = "2018"
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
+toml = { version = "0.5", features=["preserve_order"] }
+clap = "2.33"

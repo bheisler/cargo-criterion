@@ -2,7 +2,6 @@
 //! to compile the benchmarks and collect the information on the benchmark executables that it
 //! emits.
 
-use crate::args::CargoArguments;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
@@ -88,10 +87,10 @@ enum Message {
 /// list out the benchmarks and their executables and parses that information. This compiles the
 /// benchmarks but doesn't run them. Returns information on the compiled benchmarks that we can use
 /// to run them directly.
-pub fn compile(cargo_args: &CargoArguments) -> Result<Vec<Benchmark>, CompileError> {
+pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<Benchmark>, CompileError> {
     let mut cargo = Command::new("cargo")
         .arg("bench")
-        .args(&cargo_args.to_arguments())
+        .args(cargo_args)
         .args(&["--no-run", "--message-format", "json"])
         .stdin(Stdio::null())
         .stderr(Stdio::inherit()) // Cargo writes its normal compile output to stderr
