@@ -2,13 +2,14 @@
 //! to compile the benchmarks and collect the information on the benchmark executables that it
 //! emits.
 
+use crate::bench_target::BenchTarget;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 
 #[derive(Debug)]
 /// Enum representing the different ways calling Cargo might fail
 pub enum CompileError {
-    CompileFailed,
+    CompileFailed(ExitStatus),
     JsonError(serde_json::error::Error),
     IoError(std::io::Error),
 }
@@ -25,9 +26,11 @@ impl From<serde_json::error::Error> for CompileError {
 impl std::fmt::Display for CompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CompileError::CompileFailed => {
-                write!(f, "'cargo bench' returned an error; unable to continue.")
-            }
+            CompileError::CompileFailed(exit_status) => write!(
+                f,
+                "'cargo bench' returned an error ({}); unable to continue.",
+                exit_status
+            ),
             CompileError::IoError(io_error) => write!(
                 f,
                 "Unexpected IO Error while running 'cargo bench':\n{}",
@@ -44,18 +47,11 @@ impl std::fmt::Display for CompileError {
 impl std::error::Error for CompileError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            CompileError::CompileFailed => None,
+            CompileError::CompileFailed(_) => None,
             CompileError::IoError(io_error) => Some(io_error),
             CompileError::JsonError(json_error) => Some(json_error),
         }
     }
-}
-
-/// Structure representing a compiled benchmark executable.
-#[derive(Debug)]
-pub struct Benchmark {
-    name: String,
-    executable: PathBuf,
 }
 
 // These structs match the parts of Cargo's message format that we care about.
@@ -87,7 +83,7 @@ enum Message {
 /// list out the benchmarks and their executables and parses that information. This compiles the
 /// benchmarks but doesn't run them. Returns information on the compiled benchmarks that we can use
 /// to run them directly.
-pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<Benchmark>, CompileError> {
+pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>, CompileError> {
     let mut cargo = Command::new("cargo")
         .arg("bench")
         .args(cargo_args)
@@ -112,7 +108,7 @@ pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<Benchmark>, Comp
         if let Message::CompilerArtifact { target, executable } = message {
             // We only care about benchmark artifacts
             if target.kind.iter().any(|kind| kind == "bench") {
-                let bench = Benchmark {
+                let bench = BenchTarget {
                     name: target.name,
                     executable: executable.expect("Benchmark artifact had no executable."),
                 };
@@ -121,8 +117,9 @@ pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<Benchmark>, Comp
         }
     }
 
-    if !(cargo.wait()?.success()) {
-        Err(CompileError::CompileFailed)
+    let exit_status = cargo.wait()?;
+    if !(exit_status.success()) {
+        Err(CompileError::CompileFailed(exit_status))
     } else {
         Ok(benchmarks)
     }

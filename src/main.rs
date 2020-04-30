@@ -1,18 +1,33 @@
 #[macro_use]
 extern crate serde_derive;
 
+mod bench_target;
 mod compile;
 mod config;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let configuration = config::configure()?;
-    println!("{:?}", configuration);
+    let self_config = &configuration.self_config;
 
-    let benchmarks = compile::compile(&configuration.cargo_args)?;
+    let bench_targets = compile::compile(&configuration.cargo_args)?;
 
-    println!("Found {} benchmarks", benchmarks.len());
-    for bench in benchmarks.iter() {
-        println!("Benchmark: {:?}", bench);
+    if self_config.do_run {
+        for bench in bench_targets {
+            println!("Executing {} - {:?}", bench.name, bench.executable);
+            let err = bench.execute(&configuration.additional_args);
+
+            if err.is_err() {
+                let err = err.unwrap_err();
+                if self_config.do_fail_fast {
+                    return Err(Box::new(err));
+                } else {
+                    println!(
+                        "Failed to execute benchmark target {}:\n{}",
+                        bench.name, err
+                    );
+                }
+            }
+        }
     }
 
     Ok(())

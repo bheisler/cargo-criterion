@@ -272,6 +272,11 @@ pub fn configure() -> Result<FullConfig, ConfigError> {
                 .help("Unstable (nightly-only) flags to Cargo, see 'cargo -Z help' for details"),
         )
         .arg(
+            Arg::with_name("SUBCOMMAND")
+                .hidden(true)
+                .help("Cargo passes the name of the subcommand as the first param, so ignore it."),
+        )
+        .arg(
             Arg::with_name("BENCHNAME")
                 .help("If specified, only run benches with names that match this regex"),
         )
@@ -432,10 +437,12 @@ Compilation can be customized with the `bench` profile in the manifest.
         do_fail_fast: !matches.is_present("no-fail-fast"),
     };
 
-    let additional_args = match matches.values_of_os("args") {
-        Some(args) => args.map(ToOwned::to_owned).collect(),
-        None => vec![],
-    };
+    let mut additional_args: Vec<OsString> = vec![];
+    additional_args.extend(matches.value_of_os("BENCHNAME").map(ToOwned::to_owned));
+
+    if let Some(args) = matches.values_of_os("args") {
+        additional_args.extend(args.map(ToOwned::to_owned));
+    }
 
     let configuration = FullConfig {
         self_config,
