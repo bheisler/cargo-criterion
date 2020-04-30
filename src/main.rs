@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if self_config.do_run {
         for bench in bench_targets {
             println!("Executing {} - {:?}", bench.name, bench.executable);
-            let err = bench.execute(&configuration.additional_args);
+            let err = bench.execute(&self_config.criterion_home, &configuration.additional_args);
 
             if err.is_err() {
                 let err = err.unwrap_err();

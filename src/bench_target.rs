@@ -1,6 +1,6 @@
 use std::ffi::OsString;
 use std::net::TcpListener;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, ExitStatus, Stdio};
 
 #[derive(Debug)]
@@ -40,7 +40,11 @@ pub struct BenchTarget {
     pub executable: PathBuf,
 }
 impl BenchTarget {
-    pub fn execute(&self, additional_args: &[OsString]) -> Result<(), TargetError> {
+    pub fn execute(
+        &self,
+        criterion_home: &PathBuf,
+        additional_args: &[OsString],
+    ) -> Result<(), TargetError> {
         let listener = TcpListener::bind("localhost:0")
             .map_err(|err| TargetError::IoError(self.name.clone(), err))?;
         listener
@@ -56,6 +60,7 @@ impl BenchTarget {
         command
             .arg("--bench")
             .args(additional_args)
+            .env("CRITERION_HOME", criterion_home)
             .env("CARGO_CRITERION_PORT", &port.to_string())
             .stdin(Stdio::null())
             .stderr(Stdio::inherit())

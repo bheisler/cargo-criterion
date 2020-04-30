@@ -416,20 +416,22 @@ Compilation can be customized with the `bench` profile in the manifest.
     }
 
     // Set criterion home to (in descending order of preference):
+    // - $CRITERION_HOME
     // - The value from the config file
-    // - target-dir/criterion
+    // - ${--target-dir}/criterion
     // - $CARGO_TARGET_DIR/criterion
     // - ./target/criterion
-    let criterion_home = toml_config.criterion_home.unwrap_or_else(|| {
-        let mut criterion_dir: PathBuf = matches
-            .value_of_os("target-dir")
-            .map(ToOwned::to_owned)
-            .or_else(|| std::env::var_os("CARGO_TARGET_DIR"))
-            .unwrap_or_else(|| "target".into())
-            .into();
-        criterion_dir.push("criterion");
-        criterion_dir
-    });
+    let criterion_home = if let Some(value) = std::env::var_os("CRITERION_HOME") {
+        PathBuf::from(value)
+    } else if let Some(home) = toml_config.criterion_home {
+        home
+    } else if let Some(value) = matches.value_of_os("target-dir") {
+        PathBuf::from(value).join("criterion")
+    } else if let Some(value) = std::env::var_os("CARGO_TARGET_DIR") {
+        PathBuf::from(value).join("criterion")
+    } else {
+        PathBuf::from("target/criterion")
+    };
 
     let self_config = SelfConfig {
         criterion_home,
