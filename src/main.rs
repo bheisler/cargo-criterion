@@ -4,6 +4,7 @@ extern crate serde_derive;
 mod bench_target;
 mod compile;
 mod config;
+mod connection;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let configuration = config::configure()?;
