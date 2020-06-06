@@ -72,11 +72,16 @@ enum Message {
         executable: Option<PathBuf>,
     },
 
+    // TODO: Delete these and replace with a #[serde(other)] variant
+    // See https://github.com/serde-rs/serde/issues/912
     #[serde(rename = "compiler-message")]
     CompilerMessage {},
 
     #[serde(rename = "build-script-executed")]
     BuildScriptExecuted {},
+
+    #[serde(rename = "build-finished")]
+    BuildFinished {},
 }
 
 /// Launches `cargo bench` with the given additional arguments, with some additional arguments to
@@ -119,6 +124,22 @@ pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>, Co
 
     let exit_status = cargo.wait()?;
     if !(exit_status.success()) {
+        // If the compile failed, the user will probably want to see the error messages.
+        // message-format json means that the compiler will send them to us instead of the
+        // terminal, and I don't want to have to figure out how to display those messages,
+        // so instead just try again without --message-format.
+        println!("Compile failed; running compile again to show error messages");
+
+        Command::new("cargo")
+            .arg("bench")
+            .args(cargo_args)
+            .args(&["--no-run"])
+            .stdin(Stdio::inherit())
+            .stderr(Stdio::inherit()) // Cargo writes its normal compile output to stderr
+            .stdout(Stdio::inherit()) // Capture the JSON messages on stdout
+            .spawn()?
+            .wait()?;
+
         Err(CompileError::CompileFailed(exit_status))
     } else {
         Ok(benchmarks)

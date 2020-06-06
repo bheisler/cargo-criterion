@@ -1,4 +1,4 @@
-use crate::connection::{Connection, IncomingMessage, MessageError};
+use crate::connection::{Connection, ConnectionError, IncomingMessage, MessageError};
 use std::ffi::OsString;
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -9,6 +9,7 @@ pub enum TargetError {
     IoError(String, std::io::Error),
     TargetFailed(String, ExitStatus),
     MessageError(String, MessageError),
+    ConnectionError(String, ConnectionError),
 }
 impl std::fmt::Display for TargetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -28,6 +29,11 @@ impl std::fmt::Display for TargetError {
                 "Unexpected error communicating with benchmark target '{}':\n{}",
                 target_name, message_error
             ),
+            TargetError::ConnectionError(target_name, connection_error) => write!(
+                f,
+                "Unexpected error connecting to benchmark target '{}':\n{}",
+                target_name, connection_error
+            ),
         }
     }
 }
@@ -37,6 +43,7 @@ impl std::error::Error for TargetError {
             TargetError::TargetFailed(_, _) => None,
             TargetError::IoError(_, io_error) => Some(io_error),
             TargetError::MessageError(_, message_error) => Some(message_error),
+            TargetError::ConnectionError(_, connection_error) => Some(connection_error),
         }
     }
 }
@@ -83,7 +90,9 @@ impl BenchTarget {
         loop {
             match listener.accept() {
                 Ok((socket, _)) => {
-                    return self.communicate(&mut child, Connection::new(socket));
+                    let conn = Connection::new(socket)
+                        .map_err(|err| TargetError::ConnectionError(self.name.clone(), err))?;
+                    return self.communicate(&mut child, conn);
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     // No connection yet, try again in a bit.
@@ -126,11 +135,31 @@ impl BenchTarget {
             }
             let message = message.unwrap();
             match message {
+                IncomingMessage::BeginningBenchmarkGroup { group } => {
+                    println!("Beginning benchmark group {}", group);
+                }
+                IncomingMessage::FinishedBenchmarkGroup { group } => {
+                    println!("Finished benchmark group {}", group);
+                }
                 IncomingMessage::BeginningBenchmark { id } => {
                     println!("Beginning benchmark {:?}", id)
                 }
                 IncomingMessage::SkippingBenchmark { id } => {
                     println!("Skipping benchmark {:?}", id)
+                }
+                IncomingMessage::Warmup { id, nanos } => {
+                    println!("Warming up benchmark {:?} for {} nanos", id, nanos)
+                }
+                IncomingMessage::MeasurementStart {
+                    id,
+                    sample_count,
+                    estimate_ns,
+                    iter_count,
+                } => {
+                    println!("Measuring benchmark {:?} samples: {}, estimated time: {}ns, iterations: {}", id, sample_count, estimate_ns, iter_count);
+                }
+                IncomingMessage::MeasurementComplete { id, iters, times } => {
+                    println!("Measurement of benchmark {:?} complete", id);
                 }
             }
 
