@@ -1,4 +1,4 @@
-use serde::{de::DeserializeOwned, Serialize};
+use serde::de::DeserializeOwned;
 use std::convert::TryFrom;
 use std::io::{ErrorKind, Read, Write};
 use std::mem::size_of;
@@ -91,7 +91,7 @@ impl ProtocolFormat {
     }
 }
 
-const MAGIC_NUMBER: &'static str = "Criterion";
+const MAGIC_NUMBER: &str = "Criterion";
 const HELLO_SIZE: usize = MAGIC_NUMBER.len() // magic number
     + (size_of::<u8>() * 3) // criterion.rs version
     + size_of::<u16>() // protocol version
@@ -119,11 +119,11 @@ impl Connection {
             ));
         }
         let mut i = MAGIC_NUMBER.len();
-        let criterion_rs_version = [hello_buf[i + 0], hello_buf[i + 1], hello_buf[i + 2]];
+        let criterion_rs_version = [hello_buf[i], hello_buf[i + 1], hello_buf[i + 2]];
         i += 3;
-        let protocol_version = u16::from_be_bytes([hello_buf[i + 0], hello_buf[i + 1]]);
+        let protocol_version = u16::from_be_bytes([hello_buf[i], hello_buf[i + 1]]);
         i += 2;
-        let protocol_format = u16::from_be_bytes([hello_buf[i + 0], hello_buf[i + 1]]);
+        let protocol_format = u16::from_be_bytes([hello_buf[i], hello_buf[i + 1]]);
         let protocol_format = ProtocolFormat::from_u16(protocol_format)?;
 
         println!("Criterion.rs version: {:?}", criterion_rs_version);
@@ -200,7 +200,10 @@ pub enum IncomingMessage {
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "event")]
-pub enum OutgoingMessage {}
+pub enum OutgoingMessage {
+    RunBenchmark,
+    SkipBenchmark,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct RawBenchmarkId {

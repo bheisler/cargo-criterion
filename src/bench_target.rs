@@ -1,4 +1,6 @@
-use crate::connection::{Connection, ConnectionError, IncomingMessage, MessageError};
+use crate::connection::{
+    Connection, ConnectionError, IncomingMessage, MessageError, OutgoingMessage,
+};
 use std::ffi::OsString;
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -142,7 +144,9 @@ impl BenchTarget {
                     println!("Finished benchmark group {}", group);
                 }
                 IncomingMessage::BeginningBenchmark { id } => {
-                    println!("Beginning benchmark {:?}", id)
+                    println!("Beginning benchmark {:?}", id);
+                    conn.send(&OutgoingMessage::SkipBenchmark)
+                        .map_err(|err| TargetError::MessageError(self.name.clone(), err))?;
                 }
                 IncomingMessage::SkippingBenchmark { id } => {
                     println!("Skipping benchmark {:?}", id)
@@ -158,7 +162,11 @@ impl BenchTarget {
                 } => {
                     println!("Measuring benchmark {:?} samples: {}, estimated time: {}ns, iterations: {}", id, sample_count, estimate_ns, iter_count);
                 }
-                IncomingMessage::MeasurementComplete { id, iters, times } => {
+                IncomingMessage::MeasurementComplete {
+                    id,
+                    iters: _,
+                    times: _,
+                } => {
                     println!("Measurement of benchmark {:?} complete", id);
                 }
             }

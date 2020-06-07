@@ -17,8 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Executing {} - {:?}", bench.name, bench.executable);
             let err = bench.execute(&self_config.criterion_home, &configuration.additional_args);
 
-            if err.is_err() {
-                let err = err.unwrap_err();
+            if let Err(err) = err {
                 if self_config.do_fail_fast {
                     return Err(Box::new(err));
                 } else {

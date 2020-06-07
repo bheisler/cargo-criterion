@@ -65,6 +65,7 @@ struct Target {
 /// compiler-artifact message.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "reason")]
+#[allow(clippy::enum_variant_names)]
 enum Message {
     #[serde(rename = "compiler-artifact")]
     CompilerArtifact {
