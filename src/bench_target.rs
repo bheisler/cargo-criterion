@@ -145,7 +145,7 @@ impl BenchTarget {
                 }
                 IncomingMessage::BeginningBenchmark { id } => {
                     println!("Beginning benchmark {:?}", id);
-                    conn.send(&OutgoingMessage::SkipBenchmark)
+                    conn.send(&OutgoingMessage::RunBenchmark)
                         .map_err(|err| TargetError::MessageError(self.name.clone(), err))?;
                 }
                 IncomingMessage::SkippingBenchmark { id } => {
@@ -159,8 +159,9 @@ impl BenchTarget {
                     sample_count,
                     estimate_ns,
                     iter_count,
+                    added_runner,
                 } => {
-                    println!("Measuring benchmark {:?} samples: {}, estimated time: {}ns, iterations: {}", id, sample_count, estimate_ns, iter_count);
+                    println!("Measuring benchmark {:?} samples: {}, estimated time: {}ns, iterations: {}, {:?}", id, sample_count, estimate_ns, iter_count, added_runner);
                 }
                 IncomingMessage::MeasurementComplete {
                     id,
