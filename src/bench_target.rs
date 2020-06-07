@@ -1,6 +1,7 @@
 use crate::connection::{
     Connection, ConnectionError, IncomingMessage, MessageError, OutgoingMessage,
 };
+use crate::report::Report;
 use std::ffi::OsString;
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -61,6 +62,7 @@ impl BenchTarget {
         &self,
         criterion_home: &PathBuf,
         additional_args: &[OsString],
+        report: &dyn Report,
     ) -> Result<(), TargetError> {
         let listener = TcpListener::bind("localhost:0")
             .map_err(|err| TargetError::IoError(self.name.clone(), err))?;
@@ -94,7 +96,7 @@ impl BenchTarget {
                 Ok((socket, _)) => {
                     let conn = Connection::new(socket)
                         .map_err(|err| TargetError::ConnectionError(self.name.clone(), err))?;
-                    return self.communicate(&mut child, conn);
+                    return self.communicate(&mut child, conn, report, criterion_home);
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     // No connection yet, try again in a bit.
@@ -127,7 +129,16 @@ impl BenchTarget {
         }
     }
 
-    fn communicate(&self, child: &mut Child, mut conn: Connection) -> Result<(), TargetError> {
+    fn communicate(
+        &self,
+        child: &mut Child,
+        mut conn: Connection,
+        report: &dyn Report,
+        criterion_home: &std::path::Path,
+    ) -> Result<(), TargetError> {
+        let context = crate::report::ReportContext {
+            output_directory: criterion_home.to_owned(),
+        };
         loop {
             let message = conn
                 .recv()
@@ -138,38 +149,71 @@ impl BenchTarget {
             let message = message.unwrap();
             match message {
                 IncomingMessage::BeginningBenchmarkGroup { group } => {
-                    println!("Beginning benchmark group {}", group);
+                    //println!("Beginning benchmark group {}", group);
                 }
                 IncomingMessage::FinishedBenchmarkGroup { group } => {
-                    println!("Finished benchmark group {}", group);
+                    //println!("Finished benchmark group {}", group);
                 }
                 IncomingMessage::BeginningBenchmark { id } => {
-                    println!("Beginning benchmark {:?}", id);
+                    //println!("Beginning benchmark {:?}", id);
+                    let id = id.into();
+                    report.benchmark_start(&id, &context);
+
                     conn.send(&OutgoingMessage::RunBenchmark)
                         .map_err(|err| TargetError::MessageError(self.name.clone(), err))?;
                 }
                 IncomingMessage::SkippingBenchmark { id } => {
-                    println!("Skipping benchmark {:?}", id)
+                    //println!("Skipping benchmark {:?}", id)
                 }
                 IncomingMessage::Warmup { id, nanos } => {
-                    println!("Warming up benchmark {:?} for {} nanos", id, nanos)
+                    //println!("Warming up benchmark {:?} for {} nanos", id, nanos)
+                    let id = id.into();
+                    report.warmup(&id, &context, nanos);
                 }
                 IncomingMessage::MeasurementStart {
                     id,
                     sample_count,
                     estimate_ns,
                     iter_count,
-                    added_runner,
                 } => {
-                    println!("Measuring benchmark {:?} samples: {}, estimated time: {}ns, iterations: {}, {:?}", id, sample_count, estimate_ns, iter_count, added_runner);
+                    //println!("Measuring benchmark {:?} samples: {}, estimated time: {}ns, iterations: {}, {:?}", id, sample_count, estimate_ns, iter_count, added_runner);
+                    let id = id.into();
+                    report.measurement_start(&id, &context, sample_count, estimate_ns, iter_count);
                 }
                 IncomingMessage::MeasurementComplete {
                     id,
-                    iters: _,
-                    times: _,
+                    iters,
+                    times,
+                    plot_config: _,
+                    sampling_method: _,
+                    benchmark_config,
                 } => {
-                    println!("Measurement of benchmark {:?} complete", id);
+                    let id = id.into();
+                    report.analysis(&id, &context);
+
+                    let avg_values: Vec<f64> = iters
+                        .iter()
+                        .zip(times.iter())
+                        .map(|(iter, time)| *time / (*iter as f64))
+                        .collect();
+
+                    let measured_data = crate::analysis::analysis(
+                        &id,
+                        &(benchmark_config).into(),
+                        id.throughput.clone(),
+                        crate::analysis::MeasuredValues {
+                            iteration_count: &iters,
+                            sample_values: &times,
+                            avg_values: &avg_values,
+                        },
+                        None,
+                    );
+
+                    let formatter =
+                        crate::value_formatter::ConnectionValueFormatter::new(&mut conn);
+                    report.measurement_complete(&id, &context, &measured_data, &formatter);
                 }
+                other => panic!("Unexpected message {:?}", other),
             }
 
             match child.try_wait() {

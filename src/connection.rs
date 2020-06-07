@@ -167,8 +167,8 @@ impl Connection {
 }
 
 #[derive(Debug, Deserialize)]
-//#[serde(tag = "event")]
 pub enum IncomingMessage {
+    // Benchmark lifecycle messages
     BeginningBenchmarkGroup {
         group: String,
     },
@@ -190,20 +190,50 @@ pub enum IncomingMessage {
         sample_count: u64,
         estimate_ns: f64,
         iter_count: u64,
-        added_runner: Option<f64>,
     },
     MeasurementComplete {
         id: RawBenchmarkId,
-        iters: Vec<u64>,
+        iters: Vec<f64>,
         times: Vec<f64>,
+        plot_config: PlotConfiguration,
+        sampling_method: SamplingMethod,
+        benchmark_config: BenchmarkConfig,
+    },
+    // Value formatting responses
+    FormattedValue {
+        value: String,
+    },
+    ScaledValues {
+        scaled_values: Vec<f64>,
+        unit: String,
     },
 }
 
 #[derive(Debug, Serialize)]
-//#[serde(tag = "event")]
-pub enum OutgoingMessage {
+pub enum OutgoingMessage<'a> {
     RunBenchmark,
     SkipBenchmark,
+
+    FormatValue {
+        value: f64,
+    },
+    FormatThroughput {
+        value: f64,
+        throughput: Throughput,
+    },
+    ScaleValues {
+        typical_value: f64,
+        values: &'a [f64],
+    },
+    ScaleThroughputs {
+        typical_value: f64,
+        values: &'a [f64],
+        throughput: Throughput,
+    },
+    ScaleForMachines {
+        values: &'a [f64],
+    },
+    Continue,
 }
 
 #[derive(Debug, Deserialize)]
@@ -211,4 +241,72 @@ pub struct RawBenchmarkId {
     group_id: String,
     function_id: Option<String>,
     value_str: Option<String>,
+    throughput: Option<Throughput>,
+}
+impl From<RawBenchmarkId> for crate::report::BenchmarkId {
+    fn from(other: RawBenchmarkId) -> Self {
+        crate::report::BenchmarkId::new(
+            other.group_id,
+            other.function_id,
+            other.value_str,
+            other.throughput,
+        )
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub enum AxisScale {
+    Linear,
+    Logarithmic,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PlotConfiguration {
+    summary_scale: AxisScale,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum Throughput {
+    Bytes(u64),
+    Elements(u64),
+}
+
+#[derive(Debug, Deserialize)]
+pub enum SamplingMethod {
+    Linear,
+}
+
+#[derive(Debug, Deserialize)]
+struct Duration {
+    secs: u64,
+    nanos: u32,
+}
+#[derive(Debug, Deserialize)]
+pub struct BenchmarkConfig {
+    confidence_level: f64,
+    measurement_time: Duration,
+    noise_threshold: f64,
+    nresamples: usize,
+    sample_size: usize,
+    significance_level: f64,
+    warm_up_time: Duration,
+}
+impl From<BenchmarkConfig> for crate::analysis::BenchmarkConfig {
+    fn from(other: BenchmarkConfig) -> Self {
+        crate::analysis::BenchmarkConfig {
+            confidence_level: other.confidence_level,
+            measurement_time: std::time::Duration::new(
+                other.measurement_time.secs,
+                other.measurement_time.nanos,
+            ),
+            noise_threshold: other.noise_threshold,
+            nresamples: other.nresamples,
+            sample_size: other.sample_size,
+            significance_level: other.significance_level,
+            warm_up_time: std::time::Duration::new(
+                other.warm_up_time.secs,
+                other.warm_up_time.nanos,
+            ),
+        }
+    }
 }
