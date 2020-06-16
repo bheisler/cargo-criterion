@@ -58,14 +58,14 @@ pub enum ValueType {
     Value,
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct BenchmarkId {
     pub group_id: String,
     pub function_id: Option<String>,
     pub value_str: Option<String>,
     pub throughput: Option<Throughput>,
     full_id: String,
-    directory_name: String,
+    directory_name: PathBuf,
     title: String,
 }
 
@@ -125,25 +125,13 @@ impl BenchmarkId {
             title.push_str("...");
         }
 
-        let directory_name = match (&function_id, &value_str) {
-            (&Some(ref func), &Some(ref val)) => format!(
-                "{}/{}/{}",
-                make_filename_safe(&group_id),
-                make_filename_safe(func),
-                make_filename_safe(val)
-            ),
-            (&Some(ref func), &None) => format!(
-                "{}/{}",
-                make_filename_safe(&group_id),
-                make_filename_safe(func)
-            ),
-            (&None, &Some(ref val)) => format!(
-                "{}/{}",
-                make_filename_safe(&group_id),
-                make_filename_safe(val)
-            ),
-            (&None, &None) => make_filename_safe(&group_id),
-        };
+        let mut directory_name = PathBuf::from(make_filename_safe(&group_id));
+        if let Some(func) = &function_id {
+            directory_name.push(make_filename_safe(func));
+        }
+        if let Some(val) = &value_str {
+            directory_name.push(make_filename_safe(val));
+        }
 
         BenchmarkId {
             group_id,
@@ -164,7 +152,7 @@ impl BenchmarkId {
         &self.title
     }
 
-    pub fn as_directory_name(&self) -> &str {
+    pub fn as_directory_name(&self) -> &Path {
         &self.directory_name
     }
 
@@ -190,14 +178,17 @@ impl BenchmarkId {
         }
     }
 
-    pub fn ensure_directory_name_unique(&mut self, existing_directories: &HashSet<String>) {
+    pub fn ensure_directory_name_unique(&mut self, existing_directories: &HashSet<PathBuf>) {
         if !existing_directories.contains(self.as_directory_name()) {
             return;
         }
 
         let mut counter = 2;
         loop {
-            let new_dir_name = format!("{}_{}", self.as_directory_name(), counter);
+            let mut file_name = self.as_directory_name().file_name().unwrap().to_os_string();
+            file_name.push(format!("_{}", counter));
+            let new_dir_name = self.as_directory_name().with_file_name(file_name);
+
             if !existing_directories.contains(&new_dir_name) {
                 self.directory_name = new_dir_name;
                 return;
@@ -795,12 +786,18 @@ mod test {
 
         let mut new_id = existing_id.clone();
         new_id.ensure_directory_name_unique(&directories);
-        assert_eq!("group/function/value_2", new_id.as_directory_name());
+        assert_eq!(
+            "group/function/value_2",
+            new_id.as_directory_name().to_str().unwrap()
+        );
         directories.insert(new_id.as_directory_name().to_owned());
 
         new_id = existing_id.clone();
         new_id.ensure_directory_name_unique(&directories);
-        assert_eq!("group/function/value_3", new_id.as_directory_name());
+        assert_eq!(
+            "group/function/value_3",
+            new_id.as_directory_name().to_str().unwrap()
+        );
         directories.insert(new_id.as_directory_name().to_owned());
     }
     #[test]

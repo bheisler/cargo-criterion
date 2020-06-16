@@ -115,7 +115,8 @@ impl<'a> ValueFormatter for ConnectionValueFormatter<'a> {
 }
 impl<'a> Drop for ConnectionValueFormatter<'a> {
     fn drop(&mut self) {
-        self.connection
+        let _ = self
+            .connection
             .borrow_mut()
             .send(&OutgoingMessage::Continue);
     }

@@ -182,17 +182,14 @@ pub enum IncomingMessage {
         id: RawBenchmarkId,
     },
     Warmup {
-        id: RawBenchmarkId,
         nanos: f64,
     },
     MeasurementStart {
-        id: RawBenchmarkId,
         sample_count: u64,
         estimate_ns: f64,
         iter_count: u64,
     },
     MeasurementComplete {
-        id: RawBenchmarkId,
         iters: Vec<f64>,
         times: Vec<f64>,
         plot_config: PlotConfiguration,
@@ -265,7 +262,7 @@ pub struct PlotConfiguration {
     summary_scale: AxisScale,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Throughput {
     Bytes(u64),
     Elements(u64),
