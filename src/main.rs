@@ -27,6 +27,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: Handle more errors without unwrapping
     // TODO: Make sure that test & profile mode still works
     // TODO: Handle filter requests properly
+    // TODO: Add machine-readable output
+    // TODO: Add alternate sampling modes.
 
     let mut run_model = model::Model::new();
 

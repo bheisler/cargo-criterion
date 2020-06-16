@@ -149,13 +149,12 @@ impl BenchTarget {
             let message = message.unwrap();
             match message {
                 IncomingMessage::BeginningBenchmarkGroup { group } => {
-                    //println!("Beginning benchmark group {}", group);
+                    model.check_benchmark_group(&group);
                 }
                 IncomingMessage::FinishedBenchmarkGroup { group } => {
-                    //println!("Finished benchmark group {}", group);
+                    model.add_benchmark_group(&self.name, group);
                 }
                 IncomingMessage::BeginningBenchmark { id } => {
-                    //println!("Beginning benchmark {:?}", id);
                     let mut id = id.into();
                     model.add_benchmark_id(&self.name, &mut id);
                     self.run_benchmark(&mut conn, report, criterion_home, model, id)?;
@@ -163,7 +162,6 @@ impl BenchTarget {
                 IncomingMessage::SkippingBenchmark { id } => {
                     let mut id = id.into();
                     model.add_benchmark_id(&self.name, &mut id);
-                    //println!("Skipping benchmark {:?}", id)
                 }
                 other => panic!("Unexpected message {:?}", other),
             }

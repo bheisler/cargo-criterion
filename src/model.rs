@@ -7,6 +7,7 @@ pub struct Model {
     all_benchmark_ids: HashMap<BenchmarkId, String>,
     all_titles: HashSet<String>,
     all_directories: HashSet<PathBuf>,
+    benchmark_groups: HashMap<String, String>,
 }
 impl Model {
     pub fn new() -> Model {
@@ -14,6 +15,7 @@ impl Model {
             all_benchmark_ids: HashMap::new(),
             all_titles: HashSet::new(),
             all_directories: HashSet::new(),
+            benchmark_groups: HashMap::new(),
         }
     }
 
@@ -26,9 +28,21 @@ impl Model {
         self.all_titles.insert(id.as_title().to_owned());
 
         if let Some(target) = self.all_benchmark_ids.get(id) {
-            info!("Benchmark ID {} encountered multiple times. Benchmark IDs must be unique. First seen in the benchmark target '{}'", id.as_title(), target);
+            warn!("Benchmark ID {} encountered multiple times. Benchmark IDs must be unique. First seen in the benchmark target '{}'", id.as_title(), target);
         } else {
             self.all_benchmark_ids.insert(id.clone(), target.to_owned());
         }
+    }
+
+    pub fn check_benchmark_group(&self, group: &str) {
+        if let Some(target) = self.benchmark_groups.get(group) {
+            warn!("Benchmark group {} encountered again. Benchmark group IDs must be unique. First seen in the benchmark target '{}'", group, target);
+        }
+    }
+
+    pub fn add_benchmark_group(&mut self, target: &str, group: String) {
+        self.benchmark_groups
+            .entry(group)
+            .or_insert(target.to_owned());
     }
 }

@@ -37,6 +37,12 @@ macro_rules! error {
     )
 }
 
+macro_rules! warn {
+    ($($arg:tt)*) => (
+        println!("cargo-criterion WARNING: {}", &format!($($arg)*));
+    )
+}
+
 /// Print a debug message to stdout. Format is the same as println! or format!
 macro_rules! info {
     ($($arg:tt)*) => {
