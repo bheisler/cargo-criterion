@@ -247,6 +247,8 @@ impl BenchTarget {
                         None,
                     );
 
+                    model.benchmark_complete(&id);
+
                     {
                         let formatter = crate::value_formatter::ConnectionValueFormatter::new(conn);
                         report.measurement_complete(&id, &context, &measured_data, &formatter);

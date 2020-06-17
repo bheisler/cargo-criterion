@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: Add machine-readable output
     // TODO: Add alternate sampling modes.
 
-    let mut run_model = model::Model::new();
+    let mut run_model = model::Model::new(self_config.criterion_home.clone(), "main".into());
 
     let report = crate::report::CliReport::new(true, true, false);
 

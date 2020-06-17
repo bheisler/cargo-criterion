@@ -3,15 +3,23 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 pub struct Model {
+    // Path to output directory
+    criterion_home: PathBuf,
+    // Name of the timeline we're writing to.
+    timeline: PathBuf,
     // Maps benchmark IDs to their targets so we can give a better warning.
     all_benchmark_ids: HashMap<BenchmarkId, String>,
+    // Also track benchmark group IDs, since those also need to be unique.
+    benchmark_groups: HashMap<String, String>,
+    // Track all of the unique benchmark titles and directories we've seen, so we can uniquify them.
     all_titles: HashSet<String>,
     all_directories: HashSet<PathBuf>,
-    benchmark_groups: HashMap<String, String>,
 }
 impl Model {
-    pub fn new() -> Model {
+    pub fn new(criterion_home: PathBuf, timeline: PathBuf) -> Model {
         Model {
+            criterion_home,
+            timeline,
             all_benchmark_ids: HashMap::new(),
             all_titles: HashSet::new(),
             all_directories: HashSet::new(),
@@ -32,6 +40,20 @@ impl Model {
         } else {
             self.all_benchmark_ids.insert(id.clone(), target.to_owned());
         }
+    }
+
+    pub fn benchmark_complete(&self, id: &BenchmarkId) {
+        let path = path!(
+            &self.criterion_home,
+            "data",
+            &self.timeline,
+            id.as_directory_name(),
+            "benchmark.cbor"
+        );
+
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let mut file = std::fs::File::create(path).unwrap();
+        serde_cbor::to_writer(&mut file, id).unwrap();
     }
 
     pub fn check_benchmark_group(&self, group: &str) {
