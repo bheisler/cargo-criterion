@@ -123,9 +123,11 @@ impl Model {
         Ok(Some(saved_stats))
     }
 
-    pub fn check_benchmark_group(&self, group: &str) {
+    pub fn check_benchmark_group(&self, group: &str, current_target: &str) {
         if let Some(target) = self.benchmark_groups.get(group) {
-            warn!("Benchmark group {} encountered again. Benchmark group IDs must be unique. First seen in the benchmark target '{}'", group, target);
+            if target != current_target {
+                warn!("Benchmark group {} encountered again. Benchmark group IDs must be unique. First seen in the benchmark target '{}'", group, target);
+            }
         }
     }
 
