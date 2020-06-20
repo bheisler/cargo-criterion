@@ -2,6 +2,9 @@
 extern crate serde_derive;
 
 #[macro_use]
+extern crate log;
+
+#[macro_use]
 mod macros_private;
 
 mod analysis;
@@ -16,16 +19,26 @@ mod report;
 mod stats;
 mod value_formatter;
 
+fn configure_log() {
+    use simplelog::*;
+    let debug_enabled = std::env::vars_os().any(|(key, _)| key == "CRITERION_DEBUG");
+    let filter = if debug_enabled {
+        LevelFilter::max()
+    } else {
+        LevelFilter::Warn
+    };
+    TermLogger::init(filter, Default::default(), TerminalMode::Stderr).unwrap();
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    configure_log();
+
     let configuration = config::configure()?;
     let self_config = &configuration.self_config;
 
     let bench_targets = compile::compile(&configuration.cargo_args)?;
 
     // TODO: Configure the CLI output properly
-    // TODO: Set up a proper logger for cargo-criterion
-    // TODO: Handle more errors without unwrapping, probably switch to a single central error type
-    //   or just use anyhow
     // TODO: Make sure that test & profile mode still works
     // TODO: Handle filter requests properly
     // TODO: Add machine-readable output

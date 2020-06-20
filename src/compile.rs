@@ -108,7 +108,7 @@ pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>> {
         // message-format json means that the compiler will send them to us instead of the
         // terminal, and I don't want to have to figure out how to display those messages,
         // so instead just try again without --message-format.
-        println!("Compile failed; running compile again to show error messages");
+        error!("Compile failed; running compile again to show error messages");
 
         Command::new("cargo")
             .arg("bench")

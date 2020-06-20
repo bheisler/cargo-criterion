@@ -1,11 +1,11 @@
-use crate::connection::{Connection, ConnectionError, IncomingMessage, OutgoingMessage};
+use crate::connection::{Connection, IncomingMessage, OutgoingMessage};
 use crate::model::Model;
 use crate::report::{BenchmarkId, Report};
 use anyhow::{anyhow, Context, Result};
 use std::ffi::OsString;
 use std::net::TcpListener;
 use std::path::PathBuf;
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Child, Command, Stdio};
 
 /// Structure representing a compiled benchmark executable.
 #[derive(Debug)]
@@ -42,7 +42,7 @@ impl BenchTarget {
             .stderr(Stdio::inherit())
             .stdout(Stdio::inherit());
 
-        println!("{:?}", command);
+        debug!("Running '{:?}'", command);
 
         let mut child = command
             .spawn()
@@ -111,7 +111,7 @@ impl BenchTarget {
             let message = message.unwrap();
             match message {
                 IncomingMessage::BeginningBenchmarkGroup { group } => {
-                    model.check_benchmark_group(&group);
+                    model.check_benchmark_group(&self.name, &group);
                 }
                 IncomingMessage::FinishedBenchmarkGroup { group } => {
                     model.add_benchmark_group(&self.name, group);
@@ -232,7 +232,14 @@ impl BenchTarget {
                         }),
                     );
 
-                    model.benchmark_complete(&id, &measured_data);
+                    if let Err(e) = model.benchmark_complete(&id, &measured_data) {
+                        error!(
+                            "Failed to save results for target {} benchmark {}: {}",
+                            self.name,
+                            id.as_title(),
+                            e
+                        );
+                    }
 
                     {
                         let formatter = crate::value_formatter::ConnectionValueFormatter::new(conn);

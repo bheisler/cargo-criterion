@@ -30,28 +30,6 @@ macro_rules! try_else_return {
     };
 }
 
-/// Print an error message to stdout. Format is the same as println! or format!
-macro_rules! error {
-    ($($arg:tt)*) => (
-        println!("cargo-criterion ERROR: {}", &format!($($arg)*));
-    )
-}
-
-macro_rules! warn {
-    ($($arg:tt)*) => (
-        println!("cargo-criterion WARNING: {}", &format!($($arg)*));
-    )
-}
-
-/// Print a debug message to stdout. Format is the same as println! or format!
-macro_rules! info {
-    ($($arg:tt)*) => {
-        //if $crate::debug_enabled() {
-        //    println!("cargo-criterion DEBUG: {}", &format!($($arg)*));
-        //}
-    };
-}
-
 /// vec! but for pathbufs
 macro_rules! path {
     (PUSH $to:expr, $x:expr, $($y:expr),+) => {

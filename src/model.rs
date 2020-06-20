@@ -60,7 +60,7 @@ impl Model {
         );
 
         std::fs::create_dir_all(&dir)
-            .with_context(|| format!("Failed to create directory {:?}", dir));
+            .with_context(|| format!("Failed to create directory {:?}", dir))?;
 
         let measurement_name = chrono::Local::now()
             .format("measurement_%y%m%d%H%M%S.cbor")
@@ -123,7 +123,7 @@ impl Model {
         Ok(Some(saved_stats))
     }
 
-    pub fn check_benchmark_group(&self, group: &str, current_target: &str) {
+    pub fn check_benchmark_group(&self, current_target: &str, group: &str) {
         if let Some(target) = self.benchmark_groups.get(group) {
             if target != current_target {
                 warn!("Benchmark group {} encountered again. Benchmark group IDs must be unique. First seen in the benchmark target '{}'", group, target);

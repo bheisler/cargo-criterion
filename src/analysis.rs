@@ -17,7 +17,7 @@ macro_rules! elapsed {
         let out = $block;
         let elapsed = &start.elapsed();
 
-        info!(
+        debug!(
             "{} took {}",
             $msg,
             crate::format::time(crate::DurationExt::to_nanos(elapsed) as f64)
