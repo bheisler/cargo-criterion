@@ -166,6 +166,10 @@ impl Connection {
     }
 }
 
+// All of these structs are used to communicate with Criterion.rs. The benchmarks may be running
+// any version of Criterion.rs that supports cargo-criterion, so backwards compatibility is
+// important.
+
 #[derive(Debug, Deserialize)]
 pub enum IncomingMessage {
     // Benchmark lifecycle messages

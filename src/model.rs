@@ -1,5 +1,9 @@
-use crate::report::BenchmarkId;
+use crate::connection::Throughput;
+use crate::estimate::Estimates;
+use crate::report::{BenchmarkId, MeasurementData};
+use chrono::{DateTime, Utc};
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
 use std::path::PathBuf;
 
 pub struct Model {
@@ -42,18 +46,66 @@ impl Model {
         }
     }
 
-    pub fn benchmark_complete(&self, id: &BenchmarkId) {
-        let path = path!(
+    pub fn benchmark_complete(&self, id: &BenchmarkId, analysis_results: &MeasurementData) {
+        let dir = path!(
             &self.criterion_home,
             "data",
             &self.timeline,
-            id.as_directory_name(),
-            "benchmark.cbor"
+            id.as_directory_name()
         );
 
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let mut file = std::fs::File::create(path).unwrap();
-        serde_cbor::to_writer(&mut file, id).unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let measurement_name = chrono::Local::now()
+            .format("measurement_%y%m%d%H%M%S.cbor")
+            .to_string();
+
+        let saved_stats = SavedStatistics {
+            datetime: chrono::Utc::now(),
+            iterations: analysis_results.iter_counts().to_vec(),
+            values: analysis_results.sample_times().to_vec(),
+            avg_values: analysis_results.avg_times.to_vec(),
+            estimates: analysis_results.absolute_estimates.clone(),
+            throughput: analysis_results.throughput.clone(),
+        };
+
+        let measurement_path = dir.join(&measurement_name);
+        let mut measurement_file = File::create(measurement_path).unwrap();
+        serde_cbor::to_writer(&mut measurement_file, &saved_stats).unwrap();
+
+        let record = BenchmarkRecord {
+            id: id.clone(),
+            latest_record: PathBuf::from(&measurement_name),
+        };
+
+        let benchmark_path = dir.join("benchmark.cbor");
+        let mut benchmark_file = File::create(benchmark_path).unwrap();
+        serde_cbor::to_writer(&mut benchmark_file, &record).unwrap();
+    }
+
+    pub fn load_last_sample(&self, id: &BenchmarkId) -> Option<SavedStatistics> {
+        let dir = path!(
+            &self.criterion_home,
+            "data",
+            &self.timeline,
+            id.as_directory_name()
+        );
+
+        let benchmark_path = dir.join("benchmark.cbor");
+        if !benchmark_path.is_file() {
+            return None;
+        }
+        let mut benchmark_file = File::open(benchmark_path).unwrap();
+        let benchmark_record: BenchmarkRecord =
+            serde_cbor::from_reader(&mut benchmark_file).unwrap();
+
+        let measurement_path = dir.join(&benchmark_record.latest_record);
+        if !measurement_path.is_file() {
+            return None;
+        }
+        let mut measurement_file = File::open(measurement_path).unwrap();
+        let saved_stats: SavedStatistics = serde_cbor::from_reader(&mut measurement_file).unwrap();
+        Some(saved_stats)
     }
 
     pub fn check_benchmark_group(&self, group: &str) {
@@ -67,4 +119,23 @@ impl Model {
             .entry(group)
             .or_insert(target.to_owned());
     }
+}
+
+// These structs are saved to disk and may be read by future versions of cargo-criterion, so
+// backwards compatibility is important.
+
+#[derive(Debug, Serialize, Deserialize)]
+struct BenchmarkRecord {
+    id: BenchmarkId,
+    latest_record: PathBuf,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SavedStatistics {
+    pub datetime: DateTime<Utc>,
+    pub iterations: Vec<f64>,
+    pub values: Vec<f64>,
+    pub avg_values: Vec<f64>,
+    pub estimates: Estimates,
+    pub throughput: Option<Throughput>,
 }

@@ -235,6 +235,8 @@ impl BenchTarget {
                         .map(|(iter, time)| *time / (*iter as f64))
                         .collect();
 
+                    let saved_stats = model.load_last_sample(&id);
+
                     let measured_data = crate::analysis::analysis(
                         &id,
                         &(benchmark_config).into(),
@@ -244,10 +246,17 @@ impl BenchTarget {
                             sample_values: &times,
                             avg_values: &avg_values,
                         },
-                        None,
+                        saved_stats.as_ref().map(|stats| {
+                            let measured_values = crate::analysis::MeasuredValues {
+                                iteration_count: &stats.iterations,
+                                sample_values: &stats.values,
+                                avg_values: &stats.avg_values,
+                            };
+                            (measured_values, &stats.estimates)
+                        }),
                     );
 
-                    model.benchmark_complete(&id);
+                    model.benchmark_complete(&id, &measured_data);
 
                     {
                         let formatter = crate::value_formatter::ConnectionValueFormatter::new(conn);

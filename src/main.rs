@@ -24,11 +24,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // TODO: Configure the CLI output properly
     // TODO: Set up a proper logger for cargo-criterion
-    // TODO: Handle more errors without unwrapping
+    // TODO: Handle more errors without unwrapping, probably switch to a single central error type
+    //   or just use anyhow
     // TODO: Make sure that test & profile mode still works
     // TODO: Handle filter requests properly
     // TODO: Add machine-readable output
-    // TODO: Add alternate sampling modes.
+    // TODO: Add alternate sampling modes (at least in the messaging)
+    // TODO: Add support (at least in the messaging, so we can add it later) for multiple throughputs
 
     let mut run_model = model::Model::new(self_config.criterion_home.clone(), "main".into());
 
