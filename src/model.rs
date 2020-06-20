@@ -1,6 +1,7 @@
 use crate::connection::Throughput;
 use crate::estimate::Estimates;
 use crate::report::{BenchmarkId, MeasurementData};
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
@@ -46,7 +47,11 @@ impl Model {
         }
     }
 
-    pub fn benchmark_complete(&self, id: &BenchmarkId, analysis_results: &MeasurementData) {
+    pub fn benchmark_complete(
+        &self,
+        id: &BenchmarkId,
+        analysis_results: &MeasurementData,
+    ) -> Result<()> {
         let dir = path!(
             &self.criterion_home,
             "data",
@@ -54,7 +59,8 @@ impl Model {
             id.as_directory_name()
         );
 
-        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&dir)
+            .with_context(|| format!("Failed to create directory {:?}", dir));
 
         let measurement_name = chrono::Local::now()
             .format("measurement_%y%m%d%H%M%S.cbor")
@@ -70,8 +76,11 @@ impl Model {
         };
 
         let measurement_path = dir.join(&measurement_name);
-        let mut measurement_file = File::create(measurement_path).unwrap();
-        serde_cbor::to_writer(&mut measurement_file, &saved_stats).unwrap();
+        let mut measurement_file = File::create(&measurement_path)
+            .with_context(|| format!("Failed to create measurement file {:?}", measurement_path))?;
+        serde_cbor::to_writer(&mut measurement_file, &saved_stats).with_context(|| {
+            format!("Failed to save measurements to file {:?}", measurement_path)
+        })?;
 
         let record = BenchmarkRecord {
             id: id.clone(),
@@ -79,11 +88,14 @@ impl Model {
         };
 
         let benchmark_path = dir.join("benchmark.cbor");
-        let mut benchmark_file = File::create(benchmark_path).unwrap();
-        serde_cbor::to_writer(&mut benchmark_file, &record).unwrap();
+        let mut benchmark_file = File::create(&benchmark_path)
+            .with_context(|| format!("Failed to create benchmark file {:?}", benchmark_path))?;
+        serde_cbor::to_writer(&mut benchmark_file, &record)
+            .with_context(|| format!("Failed to save benchmark file {:?}", benchmark_path))?;
+        Ok(())
     }
 
-    pub fn load_last_sample(&self, id: &BenchmarkId) -> Option<SavedStatistics> {
+    pub fn load_last_sample(&self, id: &BenchmarkId) -> Result<Option<SavedStatistics>> {
         let dir = path!(
             &self.criterion_home,
             "data",
@@ -93,19 +105,22 @@ impl Model {
 
         let benchmark_path = dir.join("benchmark.cbor");
         if !benchmark_path.is_file() {
-            return None;
+            return Ok(None);
         }
-        let mut benchmark_file = File::open(benchmark_path).unwrap();
-        let benchmark_record: BenchmarkRecord =
-            serde_cbor::from_reader(&mut benchmark_file).unwrap();
+        let mut benchmark_file = File::open(&benchmark_path)
+            .with_context(|| format!("Failed to open benchmark file {:?}", benchmark_path))?;
+        let benchmark_record: BenchmarkRecord = serde_cbor::from_reader(&mut benchmark_file)
+            .with_context(|| format!("Failed to read benchmark file {:?}", benchmark_path))?;
 
         let measurement_path = dir.join(&benchmark_record.latest_record);
         if !measurement_path.is_file() {
-            return None;
+            return Ok(None);
         }
-        let mut measurement_file = File::open(measurement_path).unwrap();
-        let saved_stats: SavedStatistics = serde_cbor::from_reader(&mut measurement_file).unwrap();
-        Some(saved_stats)
+        let mut measurement_file = File::open(&measurement_path)
+            .with_context(|| format!("Failed to open measurement file {:?}", measurement_path))?;
+        let saved_stats: SavedStatistics = serde_cbor::from_reader(&mut measurement_file)
+            .with_context(|| format!("Failed to read benchmark file {:?}", measurement_path))?;
+        Ok(Some(saved_stats))
     }
 
     pub fn check_benchmark_group(&self, group: &str) {

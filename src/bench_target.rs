@@ -1,56 +1,11 @@
-use crate::connection::{
-    Connection, ConnectionError, IncomingMessage, MessageError, OutgoingMessage,
-};
+use crate::connection::{Connection, ConnectionError, IncomingMessage, OutgoingMessage};
 use crate::model::Model;
 use crate::report::{BenchmarkId, Report};
+use anyhow::{anyhow, Context, Result};
 use std::ffi::OsString;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Stdio};
-
-#[derive(Debug)]
-pub enum TargetError {
-    IoError(String, std::io::Error),
-    TargetFailed(String, ExitStatus),
-    MessageError(String, MessageError),
-    ConnectionError(String, ConnectionError),
-}
-impl std::fmt::Display for TargetError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TargetError::TargetFailed(target_name, exit_status) => write!(
-                f,
-                "Benchmark target '{}' returned an error ({}).",
-                target_name, exit_status
-            ),
-            TargetError::IoError(target_name, io_error) => write!(
-                f,
-                "Unexpected IO Error while running benchmark target '{}':\n{}",
-                target_name, io_error
-            ),
-            TargetError::MessageError(target_name, message_error) => write!(
-                f,
-                "Unexpected error communicating with benchmark target '{}':\n{}",
-                target_name, message_error
-            ),
-            TargetError::ConnectionError(target_name, connection_error) => write!(
-                f,
-                "Unexpected error connecting to benchmark target '{}':\n{}",
-                target_name, connection_error
-            ),
-        }
-    }
-}
-impl std::error::Error for TargetError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            TargetError::TargetFailed(_, _) => None,
-            TargetError::IoError(_, io_error) => Some(io_error),
-            TargetError::MessageError(_, message_error) => Some(message_error),
-            TargetError::ConnectionError(_, connection_error) => Some(connection_error),
-        }
-    }
-}
 
 /// Structure representing a compiled benchmark executable.
 #[derive(Debug)]
@@ -65,16 +20,16 @@ impl BenchTarget {
         additional_args: &[OsString],
         report: &dyn Report,
         model: &mut Model,
-    ) -> Result<(), TargetError> {
+    ) -> Result<()> {
         let listener = TcpListener::bind("localhost:0")
-            .map_err(|err| TargetError::IoError(self.name.clone(), err))?;
+            .context("Unable to open socket to conect to Criterion.rs")?;
         listener
             .set_nonblocking(true)
-            .map_err(|err| TargetError::IoError(self.name.clone(), err))?;
+            .context("Unable to set socket to nonblocking")?;
 
         let addr = listener
             .local_addr()
-            .map_err(|err| TargetError::IoError(self.name.clone(), err))?;
+            .context("Unable to get local address of socket")?;
         let port = addr.port();
 
         let mut command = Command::new(&self.executable);
@@ -91,36 +46,40 @@ impl BenchTarget {
 
         let mut child = command
             .spawn()
-            .map_err(|err| TargetError::IoError(self.name.clone(), err))?;
+            .with_context(|| format!("Unable to launch bench target {}", self.name))?;
 
         loop {
             match listener.accept() {
                 Ok((socket, _)) => {
-                    let conn = Connection::new(socket)
-                        .map_err(|err| TargetError::ConnectionError(self.name.clone(), err))?;
+                    let conn = Connection::new(socket).with_context(|| {
+                        format!("Unable to open connection to bench target {}", self.name)
+                    })?;
                     return self.communicate(&mut child, conn, report, criterion_home, model);
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     // No connection yet, try again in a bit.
                 }
                 Err(e) => {
-                    println!("Failed to accept connection");
-                    return Err(TargetError::IoError(self.name.clone(), e));
+                    return Err(e).context("Unable to accept connection to socket");
                 }
             };
 
             match child.try_wait() {
                 Err(e) => {
-                    println!("Failed to poll child process");
-                    return Err(TargetError::IoError(self.name.clone(), e));
+                    return Err(e).context(format!(
+                        "Failed to wait for non-Criterion.rs benchmark target {}",
+                        self.name
+                    ));
                 }
                 Ok(Some(exit_status)) => {
                     if exit_status.success() {
-                        println!("Child exited successfully");
                         return Ok(());
                     } else {
-                        println!("Child terminated");
-                        return Err(TargetError::TargetFailed(self.name.clone(), exit_status));
+                        return Err(anyhow!(
+                            "Non-Criterion.rs benchmark target {} exited with error code {:?}",
+                            self.name,
+                            exit_status.code()
+                        ));
                     }
                 }
                 Ok(None) => (), // Child still running, keep trying.
@@ -138,11 +97,14 @@ impl BenchTarget {
         report: &dyn Report,
         criterion_home: &std::path::Path,
         model: &mut Model,
-    ) -> Result<(), TargetError> {
+    ) -> Result<()> {
         loop {
-            let message = conn
-                .recv()
-                .map_err(|err| TargetError::MessageError(self.name.clone(), err))?;
+            let message = conn.recv().with_context(|| {
+                format!(
+                    "Failed to receive message from Criterion.rs benchmark target {}",
+                    self.name
+                )
+            })?;
             if message.is_none() {
                 return Ok(());
             }
@@ -168,16 +130,20 @@ impl BenchTarget {
 
             match child.try_wait() {
                 Err(e) => {
-                    println!("Failed to poll Criterion.rs child process");
-                    return Err(TargetError::IoError(self.name.clone(), e));
+                    return Err(e).context(format!(
+                        "Failed to poll Criterion.rs child process {}",
+                        self.name
+                    ));
                 }
                 Ok(Some(exit_status)) => {
                     if exit_status.success() {
-                        println!("Criterion.rs child exited successfully");
                         return Ok(());
                     } else {
-                        println!("Criterion.rs child terminated unsuccessfully");
-                        return Err(TargetError::TargetFailed(self.name.clone(), exit_status));
+                        return Err(anyhow!(
+                            "Criterion.rs benchmark target {} exited with error code {:?}",
+                            self.name,
+                            exit_status.code()
+                        ));
                     }
                 }
                 Ok(None) => continue,
@@ -192,23 +158,30 @@ impl BenchTarget {
         criterion_home: &std::path::Path,
         model: &mut Model,
         id: BenchmarkId,
-    ) -> Result<(), TargetError> {
+    ) -> Result<()> {
         let context = crate::report::ReportContext {
             output_directory: criterion_home.to_owned(),
         };
         report.benchmark_start(&id, &context);
 
-        conn.send(&OutgoingMessage::RunBenchmark)
-            .map_err(|err| TargetError::MessageError(self.name.clone(), err))?;
+        conn.send(&OutgoingMessage::RunBenchmark).with_context(|| {
+            format!(
+                "Failed to send message to Criterion.rs benchmark {}",
+                self.name
+            )
+        })?;
 
         loop {
-            let message = conn
-                .recv()
-                .map_err(|err| TargetError::MessageError(self.name.clone(), err))?;
-            if message.is_none() {
-                return Ok(());
-            }
-            let message = message.unwrap();
+            let message = conn.recv().with_context(|| {
+                format!(
+                    "Failed to receive message from Criterion.rs benchmark {}",
+                    self.name
+                )
+            })?;
+            let message = match message {
+                Some(message) => message,
+                None => return Ok(()),
+            };
             match message {
                 IncomingMessage::Warmup { nanos } => {
                     report.warmup(&id, &context, nanos);
@@ -235,7 +208,10 @@ impl BenchTarget {
                         .map(|(iter, time)| *time / (*iter as f64))
                         .collect();
 
-                    let saved_stats = model.load_last_sample(&id);
+                    let saved_stats = model.load_last_sample(&id).unwrap_or_else(|e| {
+                        error!("Failed to load previous sample: {:?}", e);
+                        None
+                    });
 
                     let measured_data = crate::analysis::analysis(
                         &id,

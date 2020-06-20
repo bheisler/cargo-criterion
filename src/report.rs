@@ -243,10 +243,12 @@ pub struct ReportContext {
 }
 impl ReportContext {
     pub fn report_path<P: AsRef<Path> + ?Sized>(&self, id: &BenchmarkId, file_name: &P) -> PathBuf {
-        let mut path = self.output_directory.clone();
-        path.push(id.as_directory_name());
-        path.push("report");
-        path.push(file_name);
+        let mut path = path!(
+            self.output_directory.clone(),
+            id.as_directory_name(),
+            "report",
+            file_name
+        );
         path
     }
 }

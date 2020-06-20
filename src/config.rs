@@ -1,40 +1,9 @@
+use anyhow::{Context, Result};
 use std::borrow::ToOwned;
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-
-/// Error enum representing the different things that can go wrong while parsing the configuration
-/// for the run
-#[derive(Debug)]
-pub enum ConfigError {
-    IoError(PathBuf, std::io::Error),
-    TomlError(PathBuf, toml::de::Error),
-}
-impl std::fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConfigError::IoError(manifest_path, error) => write!(
-                f,
-                "Failed to load configuration file {:?}:\n{}",
-                manifest_path, error
-            ),
-            ConfigError::TomlError(manifest_path, error) => write!(
-                f,
-                "Failed to parse configuration file {:?}:\n{}",
-                manifest_path, error
-            ),
-        }
-    }
-}
-impl std::error::Error for ConfigError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            ConfigError::IoError(_, err) => Some(err),
-            ConfigError::TomlError(_, err) => Some(err),
-        }
-    }
-}
 
 #[derive(Deserialize, Debug)]
 #[serde(default)]
@@ -69,7 +38,7 @@ pub struct FullConfig {
     pub additional_args: Vec<OsString>,
 }
 
-pub fn configure() -> Result<FullConfig, ConfigError> {
+pub fn configure() -> Result<FullConfig, anyhow::Error> {
     use clap::{App, AppSettings, Arg};
 
     let matches = App::new("cargo-criterion")
@@ -454,28 +423,19 @@ Compilation can be customized with the `bench` profile in the manifest.
     Ok(configuration)
 }
 
-fn load_toml_file(toml_path: &Path) -> Result<TomlConfig, ConfigError> {
+fn load_toml_file(toml_path: &Path) -> Result<TomlConfig, anyhow::Error> {
     if !toml_path.exists() {
         return Ok(TomlConfig::default());
     };
 
-    let mut file = match File::open(toml_path) {
-        Ok(file) => file,
-        Err(err) => {
-            return Err(ConfigError::IoError(toml_path.to_owned(), err));
-        }
-    };
+    let mut file = File::open(toml_path)
+        .with_context(|| format!("Failed to open config file {:?}", toml_path))?;
 
     let mut str_buf = String::new();
-    match file.read_to_string(&mut str_buf) {
-        Ok(_) => (),
-        Err(err) => {
-            return Err(ConfigError::IoError(toml_path.to_owned(), err));
-        }
-    };
+    file.read_to_string(&mut str_buf)
+        .with_context(|| format!("Failed to read config file {:?}", toml_path))?;
 
-    match toml::from_str(&str_buf) {
-        Ok(config) => Ok(config),
-        Err(err) => Err(ConfigError::TomlError(toml_path.to_owned(), err)),
-    }
+    let config: TomlConfig = toml::from_str(&str_buf)
+        .with_context(|| format!("Failed to parse config file {:?}", toml_path))?;
+    Ok(config)
 }

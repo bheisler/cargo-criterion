@@ -3,6 +3,7 @@
 //! emits.
 
 use crate::bench_target::BenchTarget;
+use anyhow::{Context, Result};
 use std::path::PathBuf;
 use std::process::{Command, ExitStatus, Stdio};
 
@@ -10,18 +11,6 @@ use std::process::{Command, ExitStatus, Stdio};
 /// Enum representing the different ways calling Cargo might fail
 pub enum CompileError {
     CompileFailed(ExitStatus),
-    JsonError(serde_json::error::Error),
-    IoError(std::io::Error),
-}
-impl From<std::io::Error> for CompileError {
-    fn from(other: std::io::Error) -> CompileError {
-        CompileError::IoError(other)
-    }
-}
-impl From<serde_json::error::Error> for CompileError {
-    fn from(other: serde_json::error::Error) -> CompileError {
-        CompileError::JsonError(other)
-    }
 }
 impl std::fmt::Display for CompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -31,16 +20,6 @@ impl std::fmt::Display for CompileError {
                 "'cargo bench' returned an error ({}); unable to continue.",
                 exit_status
             ),
-            CompileError::IoError(io_error) => write!(
-                f,
-                "Unexpected IO Error while running 'cargo bench':\n{}",
-                io_error
-            ),
-            CompileError::JsonError(json_error) => write!(
-                f,
-                "Unable to parse messages from 'cargo bench':\n{}",
-                json_error
-            ),
         }
     }
 }
@@ -48,8 +27,6 @@ impl std::error::Error for CompileError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             CompileError::CompileFailed(_) => None,
-            CompileError::IoError(io_error) => Some(io_error),
-            CompileError::JsonError(json_error) => Some(json_error),
         }
     }
 }
@@ -89,7 +66,7 @@ enum Message {
 /// list out the benchmarks and their executables and parses that information. This compiles the
 /// benchmarks but doesn't run them. Returns information on the compiled benchmarks that we can use
 /// to run them directly.
-pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>, CompileError> {
+pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>> {
     let mut cargo = Command::new("cargo")
         .arg("bench")
         .args(cargo_args)
@@ -109,7 +86,7 @@ pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>, Co
     // Collect the benchmark artifacts from the message stream
     let mut benchmarks = vec![];
     for message in stream {
-        let message = message?;
+        let message = message.context("Failed to parse message from cargo")?;
 
         if let Message::CompilerArtifact { target, executable } = message {
             // We only care about benchmark artifacts
@@ -123,7 +100,9 @@ pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>, Co
         }
     }
 
-    let exit_status = cargo.wait()?;
+    let exit_status = cargo
+        .wait()
+        .context("Cargo compilation failed in an unexpected way")?;
     if !(exit_status.success()) {
         // If the compile failed, the user will probably want to see the error messages.
         // message-format json means that the compiler will send them to us instead of the
@@ -141,7 +120,7 @@ pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>, Co
             .spawn()?
             .wait()?;
 
-        Err(CompileError::CompileFailed(exit_status))
+        Err(CompileError::CompileFailed(exit_status).into())
     } else {
         Ok(benchmarks)
     }

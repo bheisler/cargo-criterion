@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if self_config.do_run {
         for bench in bench_targets {
-            println!("Executing {} - {:?}", bench.name, bench.executable);
+            info!("Executing {} - {:?}", bench.name, bench.executable);
             let err = bench.execute(
                 &self_config.criterion_home,
                 &configuration.additional_args,
@@ -48,9 +48,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             if let Err(err) = err {
                 if self_config.do_fail_fast {
-                    return Err(Box::new(err));
+                    return Err(err.into());
                 } else {
-                    println!(
+                    error!(
                         "Failed to execute benchmark target {}:\n{}",
                         bench.name, err
                     );

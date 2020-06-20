@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use std::convert::TryFrom;
 use std::io::{ErrorKind, Read, Write};
@@ -5,54 +6,8 @@ use std::mem::size_of;
 use std::net::TcpStream;
 
 #[derive(Debug)]
-pub enum MessageError {
-    SerializationError(serde_cbor::Error),
-    IoError(std::io::Error),
-}
-impl From<serde_cbor::Error> for MessageError {
-    fn from(other: serde_cbor::Error) -> Self {
-        MessageError::SerializationError(other)
-    }
-}
-impl From<std::io::Error> for MessageError {
-    fn from(other: std::io::Error) -> Self {
-        MessageError::IoError(other)
-    }
-}
-impl std::fmt::Display for MessageError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MessageError::SerializationError(error) => write!(
-                f,
-                "Failed to serialize or deserialize message to Criterion.rs benchmark:\n{}",
-                error
-            ),
-            MessageError::IoError(error) => write!(
-                f,
-                "Failed to read or write message to Criterion.rs benchmark:\n{}",
-                error
-            ),
-        }
-    }
-}
-impl std::error::Error for MessageError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            MessageError::SerializationError(err) => Some(err),
-            MessageError::IoError(err) => Some(err),
-        }
-    }
-}
-
-#[derive(Debug)]
 pub enum ConnectionError {
     HelloFailed(&'static str),
-    IoError(std::io::Error),
-}
-impl From<std::io::Error> for ConnectionError {
-    fn from(other: std::io::Error) -> Self {
-        ConnectionError::IoError(other)
-    }
 }
 impl std::fmt::Display for ConnectionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -60,11 +15,6 @@ impl std::fmt::Display for ConnectionError {
             ConnectionError::HelloFailed(error) => {
                 write!(f, "Failed to connect to Criterion.rs benchmark:\n{}", error)
             }
-            ConnectionError::IoError(error) => write!(
-                f,
-                "Failed to read or write message to Criterion.rs benchmark:\n{}",
-                error
-            ),
         }
     }
 }
@@ -72,7 +22,6 @@ impl std::error::Error for ConnectionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             ConnectionError::HelloFailed(_) => None,
-            ConnectionError::IoError(err) => Some(err),
         }
     }
 }
@@ -86,7 +35,7 @@ impl ProtocolFormat {
     fn from_u16(format: u16) -> Result<Self, ConnectionError> {
         match format {
             1 => Ok(ProtocolFormat::CBOR),
-            _ => Err(ConnectionError::HelloFailed("Unknown format")),
+            _ => Err(ConnectionError::HelloFailed("Unknown format value sent by Criterion.rs benchmark; please update cargo-criterion.")),
         }
     }
 }
@@ -108,15 +57,15 @@ pub struct Connection {
     protocol_format: ProtocolFormat,
 }
 impl Connection {
-    pub fn new(mut socket: TcpStream) -> Result<Self, ConnectionError> {
+    pub fn new(mut socket: TcpStream) -> Result<Self> {
         // Read the connection hello message right away.
         let mut hello_buf = [0u8; HELLO_SIZE];
         socket.read_exact(&mut hello_buf)?;
 
         if &hello_buf[0..MAGIC_NUMBER.len()] != MAGIC_NUMBER.as_bytes() {
-            return Err(ConnectionError::HelloFailed(
-                "Not connected to a Criterion.rs benchmark.",
-            ));
+            return Err(
+                ConnectionError::HelloFailed("Not connected to a Criterion.rs benchmark.").into(),
+            );
         }
         let mut i = MAGIC_NUMBER.len();
         let criterion_rs_version = [hello_buf[i], hello_buf[i + 1], hello_buf[i + 2]];
@@ -126,9 +75,9 @@ impl Connection {
         let protocol_format = u16::from_be_bytes([hello_buf[i], hello_buf[i + 1]]);
         let protocol_format = ProtocolFormat::from_u16(protocol_format)?;
 
-        println!("Criterion.rs version: {:?}", criterion_rs_version);
-        println!("Protocol version: {}", protocol_version);
-        println!("Protocol Format: {:?}", protocol_format);
+        info!("Criterion.rs version: {:?}", criterion_rs_version);
+        info!("Protocol version: {}", protocol_version);
+        info!("Protocol Format: {:?}", protocol_format);
 
         Ok(Connection {
             socket,
@@ -141,7 +90,7 @@ impl Connection {
         })
     }
 
-    pub fn recv<T: DeserializeOwned>(&mut self) -> Result<Option<T>, MessageError> {
+    pub fn recv<T: DeserializeOwned>(&mut self) -> Result<Option<T>> {
         let mut length_buf = [0u8; 4];
         match self.socket.read_exact(&mut length_buf) {
             Err(err) if err.kind() == ErrorKind::UnexpectedEof => return Ok(None),
@@ -150,18 +99,26 @@ impl Connection {
         };
         let length = u32::from_be_bytes(length_buf);
         self.receive_buffer.resize(length as usize, 0u8);
-        self.socket.read_exact(&mut self.receive_buffer)?;
-        let value: T = serde_cbor::from_slice(&self.receive_buffer)?;
+        self.socket
+            .read_exact(&mut self.receive_buffer)
+            .context("Failed to read message from Criterion.rs benchmark")?;
+        let value: T = serde_cbor::from_slice(&self.receive_buffer)
+            .context("Failed to parse message from Criterion.rs benchmark")?;
         Ok(Some(value))
     }
 
-    pub fn send(&mut self, message: &OutgoingMessage) -> Result<(), MessageError> {
+    pub fn send(&mut self, message: &OutgoingMessage) -> Result<()> {
         self.send_buffer.truncate(0);
-        serde_cbor::to_writer(&mut self.send_buffer, message)?;
+        serde_cbor::to_writer(&mut self.send_buffer, message)
+            .with_context(|| format!("Failed to serialize message {:?}", message))?;
         let size = u32::try_from(self.send_buffer.len()).unwrap();
         let length_buf = size.to_be_bytes();
-        self.socket.write_all(&length_buf)?;
-        self.socket.write_all(&self.send_buffer)?;
+        self.socket
+            .write_all(&length_buf)
+            .context("Failed to send message header")?;
+        self.socket
+            .write_all(&self.send_buffer)
+            .context("Failed to send message")?;
         Ok(())
     }
 }
