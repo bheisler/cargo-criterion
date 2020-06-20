@@ -9,12 +9,52 @@ use std::path::{Path, PathBuf};
 #[serde(default)]
 /// Struct to hold the various configuration settings that we can read from the TOML config file.
 struct TomlConfig {
+    /// Path to output directory
     pub criterion_home: Option<PathBuf>,
+    /// Output format
+    pub output_format: Option<String>,
 }
 impl Default for TomlConfig {
     fn default() -> Self {
         TomlConfig {
-            criterion_home: None, // This is special since it can be derived from the CLI args.
+            criterion_home: None,
+            output_format: None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum OutputFormat {
+    Criterion,
+    Quiet,
+    Verbose,
+    Bencher,
+}
+impl OutputFormat {
+    fn from_str(s: &str) -> OutputFormat {
+        match s {
+            "criterion" => OutputFormat::Criterion,
+            "quiet" => OutputFormat::Quiet,
+            "verbose" => OutputFormat::Verbose,
+            "bencher" => OutputFormat::Bencher,
+            other => panic!("Unknown output format string: {}", other),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum TextColor {
+    Always,
+    Never,
+    Auto,
+}
+impl TextColor {
+    fn from_str(s: &str) -> TextColor {
+        match s {
+            "always" => TextColor::Always,
+            "never" => TextColor::Never,
+            "auto" => TextColor::Auto,
+            other => panic!("Unknown text color string: {}", other),
         }
     }
 }
@@ -22,9 +62,16 @@ impl Default for TomlConfig {
 /// Struct to hold the various configuration settings for cargo-criterion itself.
 #[derive(Debug)]
 pub struct SelfConfig {
+    /// The path to the output directory
     pub criterion_home: PathBuf,
+    /// Should we run the benchmarks?
     pub do_run: bool,
+    /// Should we fail immediately if a benchmark target fails, or continue with the others?
     pub do_fail_fast: bool,
+    /// How should the CLI output be formatted
+    pub output_format: OutputFormat,
+    /// Should we print the output in color?
+    pub text_color: TextColor,
 }
 
 /// Overall struct that represents all of the configuration data for this run.
@@ -204,11 +251,34 @@ pub fn configure() -> Result<FullConfig, anyhow::Error> {
                 .help("Run all benchmarks regardless of failure"),
         )
         .arg(
+            Arg::with_name("output-format")
+                .long("output-format")
+                .takes_value(true)
+                .possible_values(&["criterion", "quiet", "verbose", "bencher"])
+                .default_value("criterion")
+                .hide_default_value(true)
+                .hide_possible_values(true)
+                .help("Change the CLI output format. Possible values are criterion, quiet, verbose, bencher.")
+                .long_help(
+"Change the CLI output format. Possible values are [criterion, quiet, verbose, bencher].
+
+criterion: Prints confidence intervals for measurement and throughput, and indicates whether a \
+change was detected from the previous run. The default.
+
+quiet: Like criterion, but does not indicate changes. Useful for simply presenting output numbers, \
+eg. on a library's README.
+
+verbose: Like criterion, but prints additional statistics.
+
+bencher: Emulates the output format of the bencher crate and nightly-only libtest benchmarks.
+")
+        )
+        .arg(
             Arg::with_name("verbose")
                 .long("--verbose")
                 .short("v")
                 .multiple(true)
-                .help("Use verbose output (-vv very verbose/build.rs output)"),
+                .help("Use verbose output (-vv very verbose/build.rs output). Only used for Cargo builds; see also --output-format"),
         )
         .arg(
             Arg::with_name("color")
@@ -403,9 +473,18 @@ Compilation can be customized with the `bench` profile in the manifest.
     };
 
     let self_config = SelfConfig {
+        output_format: matches
+            .value_of("output-format")
+            .or(toml_config.output_format.as_deref())
+            .map(OutputFormat::from_str)
+            .unwrap_or(OutputFormat::Criterion),
         criterion_home,
         do_run: !matches.is_present("no-run"),
         do_fail_fast: !matches.is_present("no-fail-fast"),
+        text_color: matches
+            .value_of("color")
+            .map(TextColor::from_str)
+            .unwrap_or(TextColor::Auto),
     };
 
     let mut additional_args: Vec<OsString> = vec![];

@@ -208,10 +208,14 @@ impl BenchTarget {
                         .map(|(iter, time)| *time / (*iter as f64))
                         .collect();
 
-                    let saved_stats = model.load_last_sample(&id).unwrap_or_else(|e| {
-                        error!("Failed to load previous sample: {:?}", e);
+                    let saved_stats = if !report.requires_comparison() {
                         None
-                    });
+                    } else {
+                        model.load_last_sample(&id).unwrap_or_else(|e| {
+                            error!("Failed to load previous sample: {:?}", e);
+                            None
+                        })
+                    };
 
                     let measured_data = crate::analysis::analysis(
                         &id,

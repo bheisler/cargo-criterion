@@ -193,7 +193,7 @@ pub(crate) fn compare(
     let (t_statistic, t_distribution) = t_test(new_avg_times, base_avg_value_sample, config);
 
     let (estimates, relative_distributions) =
-        difference_estimates(id, new_avg_times, base_avg_value_sample, config);
+        difference_estimates(new_avg_times, base_avg_value_sample, config);
 
     std::mem::drop(base_avg_value_sample);
 
@@ -242,7 +242,6 @@ fn t_test(
 
 // Estimates the relative change in the statistics of the population
 fn difference_estimates(
-    id: &BenchmarkId,
     avg_times: &Sample<f64>,
     base_avg_times: &Sample<f64>,
     config: &BenchmarkConfig,

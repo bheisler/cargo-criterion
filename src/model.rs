@@ -83,7 +83,7 @@ impl Model {
         })?;
 
         let record = BenchmarkRecord {
-            id: id.clone(),
+            id: id.into(),
             latest_record: PathBuf::from(&measurement_name),
         };
 
@@ -141,9 +141,27 @@ impl Model {
 // These structs are saved to disk and may be read by future versions of cargo-criterion, so
 // backwards compatibility is important.
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SavedBenchmarkId {
+    group_id: String,
+    function_id: Option<String>,
+    value_str: Option<String>,
+    throughput: Option<Throughput>,
+}
+impl From<&crate::report::BenchmarkId> for SavedBenchmarkId {
+    fn from(other: &crate::report::BenchmarkId) -> Self {
+        SavedBenchmarkId {
+            group_id: other.group_id.clone(),
+            function_id: other.function_id.clone(),
+            value_str: other.value_str.clone(),
+            throughput: other.throughput.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct BenchmarkRecord {
-    id: BenchmarkId,
+    id: SavedBenchmarkId,
     latest_record: PathBuf,
 }
 

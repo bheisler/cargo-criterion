@@ -19,6 +19,8 @@ chrono = { version = "0.4", features=["serde"] }
 anyhow = "1.0"
 log = "0.4"
 simplelog = "0.8"
+atty = "0.2"
+lazy_static = "1.4"
 
 [dev-dependencies]
 approx = "0.3"
