@@ -1,12 +1,12 @@
 use super::{PlotContext, PlotData, Plotter};
-use crate::value_formatter::ValueFormatter;
-use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ValueType};
-use plotters::data::float::pretty_print_float;
-use plotters::prelude::*;
-
 use crate::kde;
+use crate::model::Benchmark;
+use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ValueType};
 use crate::stats::bivariate::Data;
 use crate::stats::univariate::Sample;
+use crate::value_formatter::ValueFormatter;
+use plotters::data::float::pretty_print_float;
+use plotters::prelude::*;
 
 static DEFAULT_FONT: FontFamily = FontFamily::SansSerif;
 static KDE_POINTS: usize = 500;
@@ -143,14 +143,14 @@ impl Plotter for PlottersBackend {
         &mut self,
         ctx: PlotContext<'_>,
         formatter: &dyn ValueFormatter,
-        all_curves: &[&(&BenchmarkId, Vec<f64>)],
+        all_benchmarks: &[(&BenchmarkId, &Benchmark)],
         value_type: ValueType,
     ) {
         let path = ctx.line_comparison_path();
         summary::line_comparison(
             formatter,
             ctx.id.as_title(),
-            all_curves,
+            all_benchmarks,
             &path,
             value_type,
             ctx.context.plot_config.summary_scale,
@@ -161,14 +161,14 @@ impl Plotter for PlottersBackend {
         &mut self,
         ctx: PlotContext<'_>,
         formatter: &dyn ValueFormatter,
-        all_curves: &[&(&BenchmarkId, Vec<f64>)],
+        all_benchmarks: &[(&BenchmarkId, &Benchmark)],
     ) {
         let violin_path = ctx.violin_path();
 
         summary::violin(
             formatter,
             ctx.id.as_title(),
-            all_curves,
+            all_benchmarks,
             &violin_path,
             ctx.context.plot_config.summary_scale,
         );

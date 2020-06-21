@@ -5,6 +5,7 @@ use crate::stats::univariate::outliers::tukey::LabeledSample;
 use crate::connection::{PlotConfiguration, Throughput};
 use crate::estimate::{Distributions, Estimate, Estimates, Statistic};
 use crate::format;
+use crate::model::BenchmarkGroup;
 use crate::stats::univariate::Sample;
 use crate::stats::Distribution;
 use crate::value_formatter::ValueFormatter;
@@ -278,7 +279,8 @@ pub trait Report {
     fn summarize(
         &self,
         _context: &ReportContext,
-        _all_ids: &[BenchmarkId],
+        _group_id: &str,
+        _benchmark_group: &BenchmarkGroup,
         _formatter: &dyn ValueFormatter,
     ) {
     }
@@ -340,11 +342,12 @@ impl<'a> Report for Reports<'a> {
     fn summarize(
         &self,
         context: &ReportContext,
-        all_ids: &[BenchmarkId],
+        group_id: &str,
+        benchmark_group: &BenchmarkGroup,
         formatter: &dyn ValueFormatter,
     ) {
         for report in &self.reports {
-            report.summarize(context, all_ids, formatter);
+            report.summarize(context, group_id, benchmark_group, formatter);
         }
     }
 
@@ -476,7 +479,7 @@ impl CliReport {
     }
 }
 impl Report for CliReport {
-    fn benchmark_start(&self, id: &BenchmarkId, ctx: &ReportContext) {
+    fn benchmark_start(&self, id: &BenchmarkId, _: &ReportContext) {
         self.print_overwritable(format!("Benchmarking {}", id));
     }
 

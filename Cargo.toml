@@ -21,10 +21,10 @@ log = "0.4"
 simplelog = "0.8"
 atty = "0.2"
 lazy_static = "1.4"
-itertools = "0.9"
 criterion-plot = { path="../plot", version="0.4.2", optional=true }
 tinytemplate = "1.0"
 linked-hash-map = "0.5"
+linked_hash_set = "0.1"
 walkdir = "2.3"
 
 [dependencies.plotters]

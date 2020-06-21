@@ -2,7 +2,7 @@ use crate::connection::{
     AxisScale, Connection, IncomingMessage, OutgoingMessage, PlotConfiguration,
 };
 use crate::model::Model;
-use crate::report::{BenchmarkId, Report};
+use crate::report::{BenchmarkId, Report, ReportContext};
 use anyhow::{anyhow, Context, Result};
 use std::ffi::OsString;
 use std::net::TcpListener;
@@ -100,6 +100,12 @@ impl BenchTarget {
         criterion_home: &std::path::Path,
         model: &mut Model,
     ) -> Result<()> {
+        let mut context = ReportContext {
+            output_directory: criterion_home.join("reports"),
+            plot_config: PlotConfiguration {
+                summary_scale: AxisScale::Linear,
+            },
+        };
         loop {
             let message = conn.recv().with_context(|| {
                 format!(
@@ -116,12 +122,17 @@ impl BenchTarget {
                     model.check_benchmark_group(&self.name, &group);
                 }
                 IncomingMessage::FinishedBenchmarkGroup { group } => {
-                    model.add_benchmark_group(&self.name, group);
+                    let benchmark_group = model.add_benchmark_group(&self.name, &group);
+                    {
+                        let formatter =
+                            crate::value_formatter::ConnectionValueFormatter::new(&mut conn);
+                        report.summarize(&context, &group, benchmark_group, &formatter);
+                    }
                 }
                 IncomingMessage::BeginningBenchmark { id } => {
                     let mut id = id.into();
                     model.add_benchmark_id(&self.name, &mut id);
-                    self.run_benchmark(&mut conn, report, criterion_home, model, id)?;
+                    self.run_benchmark(&mut conn, report, model, id, &mut context)?;
                 }
                 IncomingMessage::SkippingBenchmark { id } => {
                     let mut id = id.into();
@@ -157,16 +168,10 @@ impl BenchTarget {
         &self,
         conn: &mut Connection,
         report: &dyn Report,
-        criterion_home: &std::path::Path,
         model: &mut Model,
         id: BenchmarkId,
+        context: &mut ReportContext,
     ) -> Result<()> {
-        let mut context = crate::report::ReportContext {
-            output_directory: criterion_home.join("reports"),
-            plot_config: PlotConfiguration {
-                summary_scale: AxisScale::Linear,
-            },
-        };
         report.benchmark_start(&id, &context);
 
         conn.send(&OutgoingMessage::RunBenchmark).with_context(|| {

@@ -4,13 +4,15 @@ use crate::stats::bivariate::regression::Slope;
 use crate::estimate::Estimate;
 use crate::estimate::Statistic;
 use crate::format;
+use crate::model::{Benchmark as BenchmarkModel, BenchmarkGroup as GroupModel};
 use crate::plot::{PlotContext, PlotData, Plotter};
 use crate::value_formatter::ValueFormatter;
 use anyhow::{Context as AnyhowContext, Result};
+use linked_hash_set::LinkedHashSet;
 use serde::Serialize;
 use std::cell::RefCell;
 use std::cmp::Ordering;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -426,61 +428,31 @@ impl Report for Html {
     fn summarize(
         &self,
         context: &ReportContext,
-        all_ids: &[BenchmarkId],
+        group_id: &str,
+        benchmark_group: &GroupModel,
         formatter: &dyn ValueFormatter,
     ) {
-        /*let all_ids = all_ids
-            .iter()
-            .filter(|id| {
-                let id_dir = context.output_directory.join(id.as_directory_name());
-                is_dir(&id_dir)
-            })
-            .collect::<Vec<_>>();
-
-        let group_id = all_ids[0].group_id.clone();
-
-        let data = self.load_summary_data(&context.output_directory, &all_ids);
-
-        let mut function_ids = BTreeSet::new();
-        let mut value_strs = Vec::with_capacity(all_ids.len());
-        for id in all_ids {
+        let mut function_ids = LinkedHashSet::new();
+        let mut value_strs = LinkedHashSet::new();
+        for id in benchmark_group.benchmarks.keys() {
             if let Some(ref function_id) = id.function_id {
-                function_ids.insert(function_id);
+                function_ids.insert_if_absent(function_id);
             }
             if let Some(ref value_str) = id.value_str {
-                value_strs.push(value_str);
+                value_strs.insert_if_absent(value_str);
             }
-        }
-
-        fn try_parse(s: &str) -> Option<f64> {
-            s.parse::<f64>().ok()
-        }
-
-        // If all of the value strings can be parsed into a number, sort/dedupe
-        // numerically. Otherwise sort lexicographically.
-        if value_strs.iter().all(|os| try_parse(&*os).is_some()) {
-            value_strs.sort_unstable_by(|v1, v2| {
-                let num1 = try_parse(&v1);
-                let num2 = try_parse(&v2);
-
-                num1.partial_cmp(&num2).unwrap_or(Ordering::Less)
-            });
-            value_strs.dedup_by_key(|os| try_parse(&os).unwrap());
-        } else {
-            value_strs.sort_unstable();
-            value_strs.dedup();
         }
 
         for function_id in function_ids {
-            let samples_with_function: Vec<_> = data
+            let samples_with_function: Vec<_> = benchmark_group
+                .benchmarks
                 .iter()
-                .by_ref()
-                .filter(|&&(ref id, _)| id.function_id.as_ref() == Some(&function_id))
+                .filter(|(ref id, _)| id.function_id.as_ref() == Some(&function_id))
                 .collect();
 
             if samples_with_function.len() > 1 {
                 let subgroup_id =
-                    BenchmarkId::new(group_id.clone(), Some(function_id.clone()), None, None);
+                    BenchmarkId::new(group_id.to_owned(), Some(function_id.clone()), None, None);
 
                 self.generate_summary(
                     &subgroup_id,
@@ -493,15 +465,16 @@ impl Report for Html {
         }
 
         for value_str in value_strs {
-            let samples_with_value: Vec<_> = data
+            let samples_with_value: Vec<_> = benchmark_group
+                .benchmarks
                 .iter()
                 .by_ref()
-                .filter(|&&(ref id, _)| id.value_str.as_ref() == Some(&value_str))
+                .filter(|(ref id, _)| id.value_str.as_ref() == Some(&value_str))
                 .collect();
 
             if samples_with_value.len() > 1 {
                 let subgroup_id =
-                    BenchmarkId::new(group_id.clone(), None, Some(value_str.clone()), None);
+                    BenchmarkId::new(group_id.to_owned(), None, Some(value_str.clone()), None);
 
                 self.generate_summary(
                     &subgroup_id,
@@ -513,39 +486,16 @@ impl Report for Html {
             }
         }
 
-        let mut all_data = data.iter().by_ref().collect::<Vec<_>>();
-        // First sort the ids/data by value.
-        // If all of the value strings can be parsed into a number, sort/dedupe
-        // numerically. Otherwise sort lexicographically.
-        let all_values_numeric = all_data.iter().all(|(ref id, _)| {
-            id.value_str
-                .as_ref()
-                .map(String::as_str)
-                .and_then(try_parse)
-                .is_some()
-        });
-        if all_values_numeric {
-            all_data.sort_unstable_by(|(a, _), (b, _)| {
-                let num1 = a.value_str.as_ref().map(String::as_str).and_then(try_parse);
-                let num2 = b.value_str.as_ref().map(String::as_str).and_then(try_parse);
-
-                num1.partial_cmp(&num2).unwrap_or(Ordering::Less)
-            });
-        } else {
-            all_data.sort_unstable_by_key(|(id, _)| id.value_str.as_ref());
-        }
-        // Next, sort the ids/data by function name. This results in a sorting priority of
-        // function name, then value. This one has to be a stable sort.
-        all_data.sort_by_key(|(id, _)| id.function_id.as_ref());
+        let all_data: Vec<_> = benchmark_group.benchmarks.iter().collect();
 
         self.generate_summary(
-            &BenchmarkId::new(group_id, None, None, None),
+            &BenchmarkId::new(group_id.to_owned(), None, None, None),
             &*(all_data),
             context,
             formatter,
             true,
         );
-        self.plotter.borrow_mut().wait();*/
+        self.plotter.borrow_mut().wait();
     }
 
     fn final_summary(&self, report_context: &ReportContext) {
@@ -723,33 +673,10 @@ impl Html {
         self.plotter.borrow_mut().wait();
     }
 
-    /*fn load_summary_data<'a>(
-        &self,
-        output_directory: &Path,
-        all_ids: &[&'a BenchmarkId],
-    ) -> Vec<(&'a BenchmarkId, Vec<f64>)> {
-        all_ids
-            .iter()
-            .filter_map(|id| {
-                let entry = output_directory.join(id.as_directory_name()).join("new");
-
-                let (iters, times): (Vec<f64>, Vec<f64>) =
-                    try_else_return!(fs::load(&entry.join("sample.json")), || None);
-                let avg_times = iters
-                    .into_iter()
-                    .zip(times.into_iter())
-                    .map(|(iters, time)| time / iters)
-                    .collect::<Vec<_>>();
-
-                Some((*id, avg_times))
-            })
-            .collect::<Vec<_>>()
-    }*/
-
     fn generate_summary(
         &self,
         id: &BenchmarkId,
-        data: &[&(&BenchmarkId, Vec<f64>)],
+        data: &[(&BenchmarkId, &BenchmarkModel)],
         report_context: &ReportContext,
         formatter: &dyn ValueFormatter,
         full_summary: bool,
@@ -775,12 +702,12 @@ impl Html {
 
         self.plotter.borrow_mut().violin(plot_ctx, formatter, data);
 
-        let value_types: Vec<_> = data.iter().map(|&&(ref id, _)| id.value_type()).collect();
+        let value_types: Vec<_> = data.iter().map(|(ref id, _)| id.value_type()).collect();
         let mut line_path = None;
 
         if value_types.iter().all(|x| x == &value_types[0]) {
             if let Some(value_type) = value_types[0] {
-                let values: Vec<_> = data.iter().map(|&&(ref id, _)| id.as_number()).collect();
+                let values: Vec<_> = data.iter().map(|(ref id, _)| id.as_number()).collect();
                 if values.iter().any(|x| x != &values[0]) {
                     self.plotter
                         .borrow_mut()
@@ -793,7 +720,7 @@ impl Html {
         let path_prefix = if full_summary { "../.." } else { "../../.." };
         let benchmarks = data
             .iter()
-            .map(|&&(ref id, _)| IndividualBenchmark::from_id(path_prefix, id))
+            .map(|(ref id, _)| IndividualBenchmark::from_id(path_prefix, id))
             .collect();
 
         let context = SummaryContext {

@@ -8,6 +8,7 @@ pub(crate) use gnuplot_backend::Gnuplot;
 #[cfg(feature = "plotters_backend")]
 pub(crate) use plotters_backend::PlottersBackend;
 
+use crate::model::Benchmark;
 use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext, ValueType};
 use crate::value_formatter::ValueFormatter;
 use std::path::PathBuf;
@@ -79,7 +80,7 @@ pub(crate) trait Plotter {
         &mut self,
         ctx: PlotContext<'_>,
         formatter: &dyn ValueFormatter,
-        all_curves: &[&(&BenchmarkId, Vec<f64>)],
+        all_curves: &[(&BenchmarkId, &Benchmark)],
         value_type: ValueType,
     );
 
@@ -87,7 +88,7 @@ pub(crate) trait Plotter {
         &mut self,
         ctx: PlotContext<'_>,
         formatter: &dyn ValueFormatter,
-        all_curves: &[&(&BenchmarkId, Vec<f64>)],
+        all_curves: &[(&BenchmarkId, &Benchmark)],
     );
 
     fn t_test(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);

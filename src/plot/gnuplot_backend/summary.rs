@@ -1,12 +1,14 @@
 use super::{debug_script, escape_underscores};
 use super::{DARK_BLUE, DEFAULT_FONT, KDE_POINTS, LINEWIDTH, POINT_SIZE, SIZE};
 use crate::connection::AxisScale;
+use crate::estimate::Statistic;
 use crate::kde;
+use crate::model::Benchmark;
 use crate::report::{BenchmarkId, ValueType};
 use crate::stats::univariate::Sample;
 use crate::value_formatter::ValueFormatter;
 use criterion_plot::prelude::*;
-use itertools::Itertools;
+use linked_hash_map::LinkedHashMap;
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 use std::process::Child;
@@ -36,7 +38,7 @@ impl AxisScale {
 pub fn line_comparison(
     formatter: &dyn ValueFormatter,
     title: &str,
-    all_curves: &[&(&BenchmarkId, Vec<f64>)],
+    all_benchmarks: &[(&BenchmarkId, &Benchmark)],
     path: &Path,
     value_type: ValueType,
     axis_scale: AxisScale,
@@ -65,9 +67,15 @@ pub fn line_comparison(
 
     let mut i = 0;
 
-    let max = all_curves
+    let max = all_benchmarks
         .iter()
-        .map(|&&(_, ref data)| Sample::new(data).mean())
+        .map(|(_, ref data)| {
+            data.latest_stats
+                .estimates
+                .get(&Statistic::Typical)
+                .unwrap()
+                .point_estimate
+        })
         .fold(::std::f64::NAN, f64::max);
 
     let mut dummy = [1.0];
@@ -80,16 +88,26 @@ pub fn line_comparison(
             .set(axis_scale.to_gnuplot())
     });
 
-    // This assumes the curves are sorted. It also assumes that the benchmark IDs all have numeric
-    // values or throughputs and that value is sensible (ie. not a mix of bytes and elements
-    // or whatnot)
-    for (key, group) in &all_curves.iter().group_by(|&&&(ref id, _)| &id.function_id) {
+    let mut function_id_to_benchmarks = LinkedHashMap::new();
+    for (id, bench) in all_benchmarks {
+        function_id_to_benchmarks
+            .entry(&id.function_id)
+            .or_insert(Vec::new())
+            .push((*id, *bench))
+    }
+
+    for (key, mut group) in function_id_to_benchmarks {
+        // Unwrap is fine here because the caller shouldn't call this with non-numeric IDs.
         let mut tuples: Vec<_> = group
-            .map(|&&(ref id, ref sample)| {
-                // Unwrap is fine here because it will only fail if the assumptions above are not true
-                // ie. programmer error.
+            .into_iter()
+            .map(|(id, benchmark)| {
                 let x = id.as_number().unwrap();
-                let y = Sample::new(sample).mean();
+                let y = benchmark
+                    .latest_stats
+                    .estimates
+                    .get(&Statistic::Typical)
+                    .unwrap()
+                    .point_estimate;
 
                 (x, y)
             })
@@ -124,18 +142,21 @@ pub fn line_comparison(
 pub fn violin(
     formatter: &dyn ValueFormatter,
     title: &str,
-    all_curves: &[&(&BenchmarkId, Vec<f64>)],
+    all_benchmarks: &[(&BenchmarkId, &Benchmark)],
     path: &Path,
     axis_scale: AxisScale,
 ) -> Child {
     let path = PathBuf::from(&path);
-    let all_curves_vec = all_curves.iter().rev().cloned().collect::<Vec<_>>();
-    let all_curves: &[&(&BenchmarkId, Vec<f64>)] = &*all_curves_vec;
 
-    let kdes = all_curves
+    let kdes = all_benchmarks
         .iter()
-        .map(|&&(_, ref sample)| {
-            let (x, mut y) = kde::sweep(Sample::new(sample), KDE_POINTS, None);
+        .rev()
+        .map(|(_, benchmark)| {
+            let (x, mut y) = kde::sweep(
+                Sample::new(&benchmark.latest_stats.avg_values),
+                KDE_POINTS,
+                None,
+            );
             let y_max = Sample::new(&y).max();
             for y in y.iter_mut() {
                 *y /= y_max;
@@ -166,7 +187,7 @@ pub fn violin(
     let unit = formatter.scale_values((min + max) / 2.0, &mut one);
 
     let tics = || (0..).map(|x| (f64::from(x)) + 0.5);
-    let size = Size(1280, 200 + (25 * all_curves.len()));
+    let size = Size(1280, 200 + (25 * all_benchmarks.len()));
     let mut f = Figure::new();
     f.set(Font(DEFAULT_FONT))
         .set(size)
@@ -179,12 +200,13 @@ pub fn violin(
         })
         .configure(Axis::LeftY, |a| {
             a.set(Label("Input"))
-                .set(Range::Limits(0., all_curves.len() as f64))
+                .set(Range::Limits(0., all_benchmarks.len() as f64))
                 .set(TicLabels {
                     positions: tics(),
-                    labels: all_curves
+                    labels: all_benchmarks
                         .iter()
-                        .map(|&&(ref id, _)| escape_underscores(id.as_title())),
+                        .rev()
+                        .map(|(id, _)| escape_underscores(id.as_title())),
                 })
         });
 

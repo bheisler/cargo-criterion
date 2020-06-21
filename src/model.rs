@@ -12,30 +12,29 @@ use walkdir::WalkDir;
 
 #[derive(Debug)]
 pub struct Benchmark {
-    latest_stats: Option<SavedStatistics>,
-    previous_stats: Option<SavedStatistics>,
-    target: Option<String>,
+    pub latest_stats: SavedStatistics,
+    pub previous_stats: Option<SavedStatistics>,
+    pub target: Option<String>,
 }
-impl Default for Benchmark {
-    fn default() -> Self {
+impl Benchmark {
+    fn new(stats: SavedStatistics) -> Self {
         Benchmark {
-            latest_stats: None,
+            latest_stats: stats,
             previous_stats: None,
             target: None,
         }
     }
-}
-impl Benchmark {
+
     fn add_stats(&mut self, stats: SavedStatistics) {
-        self.previous_stats = self.latest_stats.take();
-        self.latest_stats = Some(stats);
+        let previous_stats = std::mem::replace(&mut self.latest_stats, stats);
+        self.previous_stats = Some(previous_stats);
     }
 }
 
 #[derive(Debug)]
 pub struct BenchmarkGroup {
-    benchmarks: LinkedHashMap<BenchmarkId, Benchmark>,
-    target: Option<String>,
+    pub benchmarks: LinkedHashMap<BenchmarkId, Benchmark>,
+    pub target: Option<String>,
 }
 impl Default for BenchmarkGroup {
     fn default() -> Self {
@@ -102,9 +101,7 @@ impl Model {
             .entry(benchmark_record.id.group_id.clone())
             .or_insert_with(|| Default::default())
             .benchmarks
-            .entry(benchmark_record.id.into())
-            .or_insert_with(|| Default::default())
-            .latest_stats = Some(saved_stats);
+            .insert(benchmark_record.id.into(), Benchmark::new(saved_stats));
         Ok(())
     }
 
@@ -121,16 +118,16 @@ impl Model {
             .entry(id.group_id.clone())
             .or_insert_with(|| Default::default());
 
-        let mut benchmark = group.benchmarks.remove(id).unwrap_or_default();
+        if let Some(mut benchmark) = group.benchmarks.remove(id) {
+            if let Some(target) = &benchmark.target {
+                warn!("Benchmark ID {} encountered multiple times. Benchmark IDs must be unique. First seen in the benchmark target '{}'", id.as_title(), target);
+            } else {
+                benchmark.target = Some(target.to_owned());
+            }
 
-        if let Some(target) = &benchmark.target {
-            warn!("Benchmark ID {} encountered multiple times. Benchmark IDs must be unique. First seen in the benchmark target '{}'", id.as_title(), target);
-        } else {
-            benchmark.target = Some(target.to_owned());
+            // Remove and re-insert to move the benchmark to the end of its list.
+            group.benchmarks.insert(id.clone(), benchmark);
         }
-
-        // Remove and re-insert to move the benchmark to the end of its list.
-        group.benchmarks.insert(id.clone(), benchmark);
     }
 
     pub fn benchmark_complete(
@@ -174,12 +171,21 @@ impl Model {
         serde_cbor::to_writer(&mut benchmark_file, &record)
             .with_context(|| format!("Failed to save benchmark file {:?}", benchmark_path))?;
 
-        let benchmark = self
+        let benchmark_entry = self
             .groups
             .get_mut(&id.group_id)
-            .and_then(|g| g.benchmarks.get_mut(&id))
-            .unwrap();
-        benchmark.add_stats(saved_stats);
+            .unwrap()
+            .benchmarks
+            .entry(id.clone());
+
+        match benchmark_entry {
+            vacant @ linked_hash_map::Entry::Vacant(_) => {
+                vacant.or_insert(Benchmark::new(saved_stats));
+            }
+            linked_hash_map::Entry::Occupied(mut occupied) => {
+                occupied.get_mut().add_stats(saved_stats)
+            }
+        };
         Ok(())
     }
 
@@ -187,7 +193,7 @@ impl Model {
         self.groups
             .get(&id.group_id)
             .and_then(|g| g.benchmarks.get(id))
-            .and_then(|b| b.latest_stats.as_ref())
+            .map(|b| &b.latest_stats)
     }
 
     pub fn check_benchmark_group(&self, current_target: &str, group: &str) {
@@ -200,11 +206,12 @@ impl Model {
         }
     }
 
-    pub fn add_benchmark_group(&mut self, target: &str, group_name: String) {
+    pub fn add_benchmark_group(&mut self, target: &str, group_name: &str) -> &BenchmarkGroup {
         // Remove and reinsert so that the group will be at the end of the map.
-        let mut group = self.groups.remove(&group_name).unwrap_or_default();
+        let mut group = self.groups.remove(group_name).unwrap_or_default();
         group.target = Some(target.to_owned());
-        self.groups.insert(group_name, group);
+        self.groups.insert(group_name.to_owned(), group);
+        self.groups.get(group_name).unwrap()
     }
 }
 

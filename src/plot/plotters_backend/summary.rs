@@ -1,6 +1,8 @@
 use super::*;
 use crate::connection::AxisScale;
-use itertools::Itertools;
+use crate::estimate::Statistic;
+use crate::model::Benchmark;
+use linked_hash_map::LinkedHashMap;
 use plotters::coord::{AsRangedCoord, Shift};
 use std::cmp::Ordering;
 use std::path::Path;
@@ -20,12 +22,12 @@ static COMPARISON_COLORS: [RGBColor; NUM_COLORS] = [
 pub fn line_comparison(
     formatter: &dyn ValueFormatter,
     title: &str,
-    all_curves: &[&(&BenchmarkId, Vec<f64>)],
+    all_curves: &[(&BenchmarkId, &Benchmark)],
     path: &Path,
     value_type: ValueType,
     axis_scale: AxisScale,
 ) {
-    let (unit, series_data) = line_comparision_series_data(formatter, all_curves);
+    let (unit, series_data) = line_comparison_series_data(formatter, all_curves);
 
     let x_range =
         plotters::data::fitting_range(series_data.iter().map(|(_, xs, _)| xs.iter()).flatten());
@@ -37,10 +39,15 @@ pub fn line_comparison(
         .unwrap();
 
     match axis_scale {
-        AxisScale::Linear => {
-            draw_line_comarision_figure(root_area, &unit, x_range, y_range, value_type, series_data)
-        }
-        AxisScale::Logarithmic => draw_line_comarision_figure(
+        AxisScale::Linear => draw_line_comparision_figure(
+            root_area,
+            &unit,
+            x_range,
+            y_range,
+            value_type,
+            series_data,
+        ),
+        AxisScale::Logarithmic => draw_line_comparision_figure(
             root_area,
             &unit,
             LogRange(x_range),
@@ -51,7 +58,7 @@ pub fn line_comparison(
     }
 }
 
-fn draw_line_comarision_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = f64>>(
+fn draw_line_comparision_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = f64>>(
     root_area: DrawingArea<SVGBackend, Shift>,
     y_unit: &str,
     x_range: XR,
@@ -109,13 +116,20 @@ fn draw_line_comarision_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
 }
 
 #[allow(clippy::type_complexity)]
-fn line_comparision_series_data<'a>(
+fn line_comparison_series_data<'a>(
     formatter: &dyn ValueFormatter,
-    all_curves: &[&(&'a BenchmarkId, Vec<f64>)],
+    all_benchmarks: &[(&'a BenchmarkId, &'a Benchmark)],
 ) -> (String, Vec<(Option<&'a String>, Vec<f64>, Vec<f64>)>) {
-    let max = all_curves
+    let max = all_benchmarks
         .iter()
-        .map(|&&(_, ref data)| Sample::new(data).mean())
+        .map(|(_, bench)| {
+            bench
+                .latest_stats
+                .estimates
+                .get(&Statistic::Typical)
+                .unwrap()
+                .point_estimate
+        })
         .fold(::std::f64::NAN, f64::max);
 
     let mut dummy = [1.0];
@@ -123,16 +137,26 @@ fn line_comparision_series_data<'a>(
 
     let mut series_data = vec![];
 
-    // This assumes the curves are sorted. It also assumes that the benchmark IDs all have numeric
-    // values or throughputs and that value is sensible (ie. not a mix of bytes and elements
-    // or whatnot)
-    for (key, group) in &all_curves.iter().group_by(|&&&(ref id, _)| &id.function_id) {
+    let mut function_id_to_benchmarks = LinkedHashMap::new();
+    for (id, bench) in all_benchmarks {
+        function_id_to_benchmarks
+            .entry(&id.function_id)
+            .or_insert(Vec::new())
+            .push((*id, *bench))
+    }
+
+    for (key, mut group) in function_id_to_benchmarks {
+        // Unwrap is fine here because the caller shouldn't call this with non-numeric IDs.
         let mut tuples: Vec<_> = group
-            .map(|&&(ref id, ref sample)| {
-                // Unwrap is fine here because it will only fail if the assumptions above are not true
-                // ie. programmer error.
+            .into_iter()
+            .map(|(id, bench)| {
                 let x = id.as_number().unwrap();
-                let y = Sample::new(sample).mean();
+                let y = bench
+                    .latest_stats
+                    .estimates
+                    .get(&Statistic::Typical)
+                    .unwrap()
+                    .point_estimate;
 
                 (x, y)
             })
@@ -149,17 +173,19 @@ fn line_comparision_series_data<'a>(
 pub fn violin(
     formatter: &dyn ValueFormatter,
     title: &str,
-    all_curves: &[&(&BenchmarkId, Vec<f64>)],
+    all_benchmarks: &[(&BenchmarkId, &Benchmark)],
     path: &Path,
     axis_scale: AxisScale,
 ) {
-    let all_curves_vec = all_curves.iter().rev().cloned().collect::<Vec<_>>();
-    let all_curves: &[&(&BenchmarkId, Vec<f64>)] = &*all_curves_vec;
-
-    let mut kdes = all_curves
+    let mut kdes = all_benchmarks
         .iter()
-        .map(|&&(ref id, ref sample)| {
-            let (x, mut y) = kde::sweep(Sample::new(sample), KDE_POINTS, None);
+        .rev()
+        .map(|(id, sample)| {
+            let (x, mut y) = kde::sweep(
+                Sample::new(&sample.latest_stats.avg_values),
+                KDE_POINTS,
+                None,
+            );
             let y_max = Sample::new(&y).max();
             for y in y.iter_mut() {
                 *y /= y_max;
@@ -191,9 +217,9 @@ pub fn violin(
     });
 
     let x_range = plotters::data::fitting_range(kdes.iter().map(|(_, xs, _)| xs.iter()).flatten());
-    let y_range = -0.5..all_curves.len() as f64 - 0.5;
+    let y_range = -0.5..all_benchmarks.len() as f64 - 0.5;
 
-    let size = (960, 150 + (18 * all_curves.len() as u32));
+    let size = (960, 150 + (18 * all_benchmarks.len() as u32));
 
     let root_area = SVGBackend::new(&path, size)
         .into_drawing_area()

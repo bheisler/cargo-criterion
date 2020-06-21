@@ -45,7 +45,9 @@ pub(crate) fn analysis<'a>(
     let (mut distributions, mut estimates) = estimates(avg_values, config);
 
     estimates.insert(Statistic::Slope, slope);
-    distributions.insert(Statistic::Slope, distribution);
+    estimates.insert(Statistic::Typical, slope);
+    distributions.insert(Statistic::Slope, distribution.clone());
+    distributions.insert(Statistic::Typical, distribution);
 
     let compare_data = if let Some((old_sample, old_estimates)) = old_sample {
         let result = compare(avg_values, &old_sample, config);

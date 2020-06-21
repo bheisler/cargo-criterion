@@ -62,6 +62,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: Document the code
     // TODO: Add a section to the user guide
     // TODO: Add support for timelines
+    // TODO: Eliminate BTree Estimates & Distributions
+    // TODO: Reorganize reports.
 
     let mut run_model = model::Model::load(self_config.criterion_home.clone(), "main".into());
 
