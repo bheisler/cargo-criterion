@@ -1,6 +1,4 @@
-use crate::connection::{
-    AxisScale, Connection, IncomingMessage, OutgoingMessage, PlotConfiguration,
-};
+use crate::connection::{AxisScale, Connection, IncomingMessage, PlotConfiguration};
 use crate::model::Model;
 use crate::report::{BenchmarkId, Report, ReportContext};
 use anyhow::{anyhow, Context, Result};
@@ -173,13 +171,6 @@ impl BenchTarget {
         context: &mut ReportContext,
     ) -> Result<()> {
         report.benchmark_start(&id, &context);
-
-        conn.send(&OutgoingMessage::RunBenchmark).with_context(|| {
-            format!(
-                "Failed to send message to Criterion.rs benchmark {}",
-                self.name
-            )
-        })?;
 
         loop {
             let message = conn.recv().with_context(|| {

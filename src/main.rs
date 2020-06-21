@@ -56,7 +56,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bench_targets = compile::compile(&configuration.cargo_args)?;
 
     // TODO: Make sure that test & profile mode still works
-    // TODO: Handle filter requests properly
     // TODO: Add machine-readable output
     // TODO: Add alternate sampling modes (at least in the messaging)
     // TODO: Add support (at least in the messaging, so we can add it later) for multiple throughputs

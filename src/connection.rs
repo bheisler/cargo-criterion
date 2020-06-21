@@ -40,9 +40,13 @@ impl ProtocolFormat {
     }
 }
 
-const MAGIC_NUMBER: &str = "Criterion";
-const HELLO_SIZE: usize = MAGIC_NUMBER.len() // magic number
-    + (size_of::<u8>() * 3) // criterion.rs version
+const RUNNER_MAGIC_NUMBER: &str = "cargo-criterion";
+const RUNNER_HELLO_SIZE: usize = RUNNER_MAGIC_NUMBER.len() // magic number
+    + (size_of::<u8>() * 3); // version number
+
+const BENCHMARK_MAGIC_NUMBER: &str = "Criterion";
+const BENCHMARK_HELLO_SIZE: usize = BENCHMARK_MAGIC_NUMBER.len() // magic number
+    + (size_of::<u8>() * 3) // version number
     + size_of::<u16>() // protocol version
     + size_of::<u16>(); // protocol format
 
@@ -58,16 +62,26 @@ pub struct Connection {
 }
 impl Connection {
     pub fn new(mut socket: TcpStream) -> Result<Self> {
-        // Read the connection hello message right away.
-        let mut hello_buf = [0u8; HELLO_SIZE];
+        // Send the runner-hello message.
+        let mut hello_buf = [0u8; RUNNER_HELLO_SIZE];
+        hello_buf[0..RUNNER_MAGIC_NUMBER.len()].copy_from_slice(RUNNER_MAGIC_NUMBER.as_bytes());
+        let i = RUNNER_MAGIC_NUMBER.len();
+        hello_buf[i] = env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap();
+        hello_buf[i + 1] = env!("CARGO_PKG_VERSION_MINOR").parse().unwrap();
+        hello_buf[i + 2] = env!("CARGO_PKG_VERSION_PATCH").parse().unwrap();
+
+        socket.write_all(&hello_buf)?;
+
+        // Read the benchmark hello message.
+        let mut hello_buf = [0u8; BENCHMARK_HELLO_SIZE];
         socket.read_exact(&mut hello_buf)?;
 
-        if &hello_buf[0..MAGIC_NUMBER.len()] != MAGIC_NUMBER.as_bytes() {
+        if &hello_buf[0..BENCHMARK_MAGIC_NUMBER.len()] != BENCHMARK_MAGIC_NUMBER.as_bytes() {
             return Err(
                 ConnectionError::HelloFailed("Not connected to a Criterion.rs benchmark.").into(),
             );
         }
-        let mut i = MAGIC_NUMBER.len();
+        let mut i = BENCHMARK_MAGIC_NUMBER.len();
         let criterion_rs_version = [hello_buf[i], hello_buf[i + 1], hello_buf[i + 2]];
         i += 3;
         let protocol_version = u16::from_be_bytes([hello_buf[i], hello_buf[i + 1]]);
@@ -169,9 +183,6 @@ pub enum IncomingMessage {
 
 #[derive(Debug, Serialize)]
 pub enum OutgoingMessage<'a> {
-    RunBenchmark,
-    SkipBenchmark,
-
     FormatValue {
         value: f64,
     },
