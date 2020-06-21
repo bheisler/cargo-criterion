@@ -13,12 +13,15 @@ struct TomlConfig {
     pub criterion_home: Option<PathBuf>,
     /// Output format
     pub output_format: Option<String>,
+    /// Plotting backend
+    pub plotting_backend: Option<String>,
 }
 impl Default for TomlConfig {
     fn default() -> Self {
         TomlConfig {
             criterion_home: None,
             output_format: None,
+            plotting_backend: None,
         }
     }
 }
@@ -59,6 +62,23 @@ impl TextColor {
     }
 }
 
+#[derive(Debug)]
+pub enum PlottingBackend {
+    Gnuplot,
+    Plotters,
+    Auto,
+}
+impl PlottingBackend {
+    fn from_str(s: &str) -> PlottingBackend {
+        match s {
+            "gnuplot" => PlottingBackend::Gnuplot,
+            "plotters" => PlottingBackend::Plotters,
+            "auto" => PlottingBackend::Auto,
+            other => panic!("Unknown plotting backend: {}", other),
+        }
+    }
+}
+
 /// Struct to hold the various configuration settings for cargo-criterion itself.
 #[derive(Debug)]
 pub struct SelfConfig {
@@ -72,6 +92,8 @@ pub struct SelfConfig {
     pub output_format: OutputFormat,
     /// Should we print the output in color?
     pub text_color: TextColor,
+    /// Which plotting backend to use?
+    pub plotting_backend: PlottingBackend,
 }
 
 /// Overall struct that represents all of the configuration data for this run.
@@ -229,7 +251,7 @@ pub fn configure() -> Result<FullConfig, anyhow::Error> {
                 .long("--target-dir")
                 .takes_value(true)
                 .value_name("DIRECTORY")
-                .help("Directory for all genreated artifacts"),
+                .help("Directory for all generated artifacts"),
         )
         .arg(
             Arg::with_name("manifest-path")
@@ -273,6 +295,12 @@ verbose: Like criterion, but prints additional statistics.
 bencher: Emulates the output format of the bencher crate and nightly-only libtest benchmarks.
 ")
         )
+        .arg(
+            Arg::with_name("plotting-backend")
+                .long("plotting-backend")
+                .takes_value(true)
+                .possible_values(&["gnuplot", "plotters"])
+                .help("Set the plotting backend. By default, cargo-criterion will use the gnuplot backend if gnuplot is available, or the plotters backend if it isn't."))
         .arg(
             Arg::with_name("verbose")
                 .long("--verbose")
@@ -485,6 +513,11 @@ Compilation can be customized with the `bench` profile in the manifest.
             .value_of("color")
             .map(TextColor::from_str)
             .unwrap_or(TextColor::Auto),
+        plotting_backend: matches
+            .value_of("plotting-backend")
+            .or(toml_config.plotting_backend.as_deref())
+            .map(PlottingBackend::from_str)
+            .unwrap_or(PlottingBackend::Auto),
     };
 
     let mut additional_args: Vec<OsString> = vec![];

@@ -14,12 +14,17 @@ mod config;
 mod connection;
 mod estimate;
 mod format;
+mod html;
+mod kde;
 mod model;
+mod plot;
 mod report;
 mod stats;
 mod value_formatter;
 
-use crate::config::{OutputFormat, TextColor};
+use crate::config::{OutputFormat, PlottingBackend, SelfConfig, TextColor};
+use crate::plot::Plotter;
+use anyhow::Error;
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -61,11 +66,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cli_report = configure_cli_output(self_config);
     let bencher_report = crate::report::BencherReport;
+    let html_report = crate::html::Html::new(get_plotter(self_config)?);
 
-    let report: &dyn crate::report::Report = match self_config.output_format {
-        OutputFormat::Bencher => &bencher_report,
-        OutputFormat::Criterion | OutputFormat::Quiet | OutputFormat::Verbose => &cli_report,
-    };
+    let mut reports: Vec<&dyn crate::report::Report> = Vec::new();
+    match self_config.output_format {
+        OutputFormat::Bencher => reports.push(&bencher_report),
+        OutputFormat::Criterion | OutputFormat::Quiet | OutputFormat::Verbose => {
+            reports.push(&cli_report)
+        }
+    }
+    reports.push(&html_report);
+    let reports = crate::report::Reports::new(reports);
 
     if self_config.do_run {
         for bench in bench_targets {
@@ -73,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let err = bench.execute(
                 &self_config.criterion_home,
                 &configuration.additional_args,
-                report,
+                &reports,
                 &mut run_model,
             );
 
@@ -120,6 +131,43 @@ fn configure_cli_output(self_config: &crate::config::SelfConfig) -> crate::repor
         show_differences,
         verbose,
     )
+}
+
+#[cfg(feature = "gnuplot_backend")]
+fn gnuplot_plotter() -> Result<Box<dyn Plotter>, Error> {
+    match criterion_plot::version() {
+        Ok(_) => Ok(Box::new(crate::plot::Gnuplot::new())),
+        Err(_) => Err(anyhow::anyhow!("Gnuplot is not available. To continue, either install Gnuplot or allow cargo-criterion to fall back to using plotters.")),
+    }
+}
+
+#[cfg(not(feature = "gnuplot_backend"))]
+fn gnuplot_plotter() -> Result<Box<dyn Plotter>, Error> {
+    anyhow::bail!("Gnuplot backend is disabled. To use gnuplot backend, install cargo-criterion with the 'gnuplot_backend' feature enabled")
+}
+
+#[cfg(feature = "plotters_backend")]
+fn plotters_plotter() -> Result<Box<dyn Plotter>, Error> {
+    Ok(Box::new(crate::plot::PlottersBackend))
+}
+
+#[cfg(not(feature = "plotters_backend"))]
+fn plotters_plotter() -> Result<Box<dyn Plotter>, Error> {
+    anyhow::bail!("Plotters backend is disabled. To use plotters backend, install cargo-criterion with the 'plotters_backend' feature enabled")
+}
+
+#[cfg(any(feature = "gnuplot_backend", feature = "plotters_backend"))]
+fn get_plotter(config: &SelfConfig) -> Result<Box<dyn Plotter>, Error> {
+    match config.plotting_backend {
+        PlottingBackend::Gnuplot => gnuplot_plotter(),
+        PlottingBackend::Plotters => plotters_plotter(),
+        PlottingBackend::Auto => gnuplot_plotter().or(plotters_plotter()),
+    }
+}
+
+#[cfg(not(any(feature = "gnuplot_backend", feature = "plotters_backend")))]
+fn get_plotter(_: &SelfConfig) -> Result<Box<dyn Plotter>, Error> {
+    anyhow::bail!("No plotting backend is available. At least one of the 'gnuplot_backend' or 'plotters_backend' features must be included.")
 }
 
 trait DurationExt {

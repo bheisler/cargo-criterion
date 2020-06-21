@@ -11,22 +11,6 @@ use crate::stats::{Distribution, Tails};
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-macro_rules! elapsed {
-    ($msg:expr, $block:expr) => {{
-        let start = ::std::time::Instant::now();
-        let out = $block;
-        let elapsed = &start.elapsed();
-
-        debug!(
-            "{} took {}",
-            $msg,
-            crate::format::time(crate::DurationExt::to_nanos(elapsed) as f64)
-        );
-
-        out
-    }};
-}
-
 #[derive(Debug, Clone)]
 pub struct BenchmarkConfig {
     pub confidence_level: f64,
@@ -66,7 +50,7 @@ pub(crate) fn analysis<'a>(
     distributions.insert(Statistic::Slope, distribution);
 
     let compare_data = if let Some((old_sample, old_estimates)) = old_sample {
-        let result = compare(id, avg_values, &old_sample, config);
+        let result = compare(avg_values, &old_sample, config);
         match result {
             (
                 t_value,
@@ -176,7 +160,6 @@ fn estimates(avg_times: &Sample<f64>, config: &BenchmarkConfig) -> (Distribution
 // Common comparison procedure
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::type_complexity))]
 pub(crate) fn compare(
-    id: &BenchmarkId,
     new_avg_times: &Sample<f64>,
     old_values: &MeasuredValues,
     config: &BenchmarkConfig,

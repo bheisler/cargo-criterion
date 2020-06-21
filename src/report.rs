@@ -240,16 +240,16 @@ impl fmt::Debug for BenchmarkId {
 
 pub struct ReportContext {
     pub output_directory: PathBuf,
+    pub plot_config: PlotConfiguration,
 }
 impl ReportContext {
     pub fn report_path<P: AsRef<Path> + ?Sized>(&self, id: &BenchmarkId, file_name: &P) -> PathBuf {
-        let mut path = path!(
+        path!(
             self.output_directory.clone(),
             id.as_directory_name(),
             "report",
             file_name
-        );
-        path
+        )
     }
 }
 
@@ -289,15 +289,15 @@ pub trait Report {
     fn requires_comparison(&self) -> bool;
 }
 
-pub struct Reports {
-    reports: Vec<Box<dyn Report>>,
+pub struct Reports<'a> {
+    reports: Vec<&'a dyn Report>,
 }
-impl Reports {
-    pub fn new(reports: Vec<Box<dyn Report>>) -> Reports {
+impl<'a> Reports<'a> {
+    pub fn new(reports: Vec<&'a dyn Report>) -> Reports<'a> {
         Reports { reports }
     }
 }
-impl Report for Reports {
+impl<'a> Report for Reports<'a> {
     fn benchmark_start(&self, id: &BenchmarkId, context: &ReportContext) {
         for report in &self.reports {
             report.benchmark_start(id, context);

@@ -212,7 +212,7 @@ impl From<RawBenchmarkId> for crate::report::BenchmarkId {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone, Copy)]
 pub enum AxisScale {
     Linear,
     Logarithmic,
@@ -220,7 +220,7 @@ pub enum AxisScale {
 
 #[derive(Debug, Deserialize)]
 pub struct PlotConfiguration {
-    summary_scale: AxisScale,
+    pub summary_scale: AxisScale,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]

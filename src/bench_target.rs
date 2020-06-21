@@ -1,4 +1,6 @@
-use crate::connection::{Connection, IncomingMessage, OutgoingMessage};
+use crate::connection::{
+    AxisScale, Connection, IncomingMessage, OutgoingMessage, PlotConfiguration,
+};
 use crate::model::Model;
 use crate::report::{BenchmarkId, Report};
 use anyhow::{anyhow, Context, Result};
@@ -159,8 +161,11 @@ impl BenchTarget {
         model: &mut Model,
         id: BenchmarkId,
     ) -> Result<()> {
-        let context = crate::report::ReportContext {
-            output_directory: criterion_home.to_owned(),
+        let mut context = crate::report::ReportContext {
+            output_directory: criterion_home.join("reports"),
+            plot_config: PlotConfiguration {
+                summary_scale: AxisScale::Linear,
+            },
         };
         report.benchmark_start(&id, &context);
 
@@ -196,10 +201,11 @@ impl BenchTarget {
                 IncomingMessage::MeasurementComplete {
                     iters,
                     times,
-                    plot_config: _,
+                    plot_config,
                     sampling_method: _,
                     benchmark_config,
                 } => {
+                    context.plot_config = plot_config;
                     report.analysis(&id, &context);
 
                     let avg_values: Vec<f64> = iters
