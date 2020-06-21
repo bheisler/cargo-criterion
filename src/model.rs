@@ -53,7 +53,7 @@ pub struct Model {
     all_titles: HashSet<String>,
     all_directories: HashSet<PathBuf>,
 
-    groups: LinkedHashMap<String, BenchmarkGroup>,
+    pub groups: LinkedHashMap<String, BenchmarkGroup>,
 }
 impl Model {
     pub fn load(criterion_home: PathBuf, timeline: PathBuf) -> Model {

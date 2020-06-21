@@ -4,7 +4,7 @@ use crate::stats::bivariate::regression::Slope;
 use crate::estimate::Estimate;
 use crate::estimate::Statistic;
 use crate::format;
-use crate::model::{Benchmark as BenchmarkModel, BenchmarkGroup as GroupModel};
+use crate::model::{Benchmark as BenchmarkModel, BenchmarkGroup as GroupModel, Model};
 use crate::plot::{PlotContext, PlotData, Plotter};
 use crate::value_formatter::ValueFormatter;
 use anyhow::{Context as AnyhowContext, Result};
@@ -223,22 +223,25 @@ struct BenchmarkGroup<'a> {
     individual_links: Vec<BenchmarkValueGroup<'a>>,
 }
 impl<'a> BenchmarkGroup<'a> {
-    fn new(output_directory: &Path, ids: &[&'a BenchmarkId]) -> BenchmarkGroup<'a> {
-        let group_id = &ids[0].group_id;
+    fn new(
+        output_directory: &Path,
+        group_id: &'a str,
+        group: &'a GroupModel,
+    ) -> BenchmarkGroup<'a> {
         let group_report = ReportLink::group(output_directory, group_id);
 
-        let mut function_ids = Vec::with_capacity(ids.len());
-        let mut values = Vec::with_capacity(ids.len());
-        let mut individual_links = HashMap::with_capacity(ids.len());
+        let mut function_ids = LinkedHashSet::new();
+        let mut values = LinkedHashSet::new();
+        let mut individual_links = HashMap::with_capacity(group.benchmarks.len());
 
-        for id in ids.iter() {
+        for id in group.benchmarks.keys() {
             let function_id = id.function_id.as_ref().map(String::as_str);
             let value = id.value_str.as_ref().map(String::as_str);
 
             let individual_link = ReportLink::individual(output_directory, id);
 
-            function_ids.push(function_id);
-            values.push(value);
+            function_ids.insert_if_absent(function_id);
+            values.insert_if_absent(value);
 
             individual_links.insert((function_id, value), individual_link);
         }
@@ -246,25 +249,6 @@ impl<'a> BenchmarkGroup<'a> {
         fn parse_opt(os: &Option<&str>) -> Option<f64> {
             os.and_then(|s| s.parse::<f64>().ok())
         }
-
-        // If all of the value strings can be parsed into a number, sort/dedupe
-        // numerically. Otherwise sort lexicographically.
-        if values.iter().all(|os| parse_opt(os).is_some()) {
-            values.sort_unstable_by(|v1, v2| {
-                let num1 = parse_opt(&v1);
-                let num2 = parse_opt(&v2);
-
-                num1.partial_cmp(&num2).unwrap_or(Ordering::Less)
-            });
-            values.dedup_by_key(|os| parse_opt(&os).unwrap());
-        } else {
-            values.sort_unstable();
-            values.dedup();
-        }
-
-        // Sort and dedupe functions by name.
-        function_ids.sort_unstable();
-        function_ids.dedup();
 
         let mut value_groups = Vec::with_capacity(values.len());
         for value in values.iter() {
@@ -498,31 +482,17 @@ impl Report for Html {
         self.plotter.borrow_mut().wait();
     }
 
-    fn final_summary(&self, report_context: &ReportContext) {
-        // TODO
-        return;
-        /*let output_directory = &report_context.output_directory;
+    fn final_summary(&self, report_context: &ReportContext, model: &Model) {
+        let output_directory = &report_context.output_directory;
         if !is_dir(&output_directory) {
             return;
         }
 
-        let mut found_ids = try_else_return!(fs::list_existing_benchmarks(&output_directory));
-        found_ids.sort_unstable_by_key(|id| id.id().to_owned());
-
-        // Group IDs by group id
-        let mut id_groups: HashMap<&str, Vec<&BenchmarkId>> = HashMap::new();
-        for id in found_ids.iter() {
-            id_groups
-                .entry(&id.group_id)
-                .or_insert_with(Vec::new)
-                .push(id);
-        }
-
-        let mut groups = id_groups
-            .into_iter()
-            .map(|(_, group)| BenchmarkGroup::new(output_directory, &group))
+        let groups = model
+            .groups
+            .iter()
+            .map(|(id, group)| BenchmarkGroup::new(output_directory, id, &group))
             .collect::<Vec<BenchmarkGroup<'_>>>();
-        groups.sort_unstable_by_key(|g| g.group_report.name);
 
         try_else_return!(mkdirp(&output_directory.join("report")));
 
@@ -536,7 +506,7 @@ impl Report for Html {
             .templates
             .render("index", &context)
             .expect("Failed to render index template");
-        try_else_return!(fs::save_string(&text, &report_path,));*/
+        try_else_return!(save_string(&text, &report_path,));
     }
 }
 impl Html {

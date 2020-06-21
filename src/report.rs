@@ -5,7 +5,7 @@ use crate::stats::univariate::outliers::tukey::LabeledSample;
 use crate::connection::{PlotConfiguration, Throughput};
 use crate::estimate::{Distributions, Estimate, Estimates, Statistic};
 use crate::format;
-use crate::model::BenchmarkGroup;
+use crate::model::{BenchmarkGroup, Model};
 use crate::stats::univariate::Sample;
 use crate::stats::Distribution;
 use crate::value_formatter::ValueFormatter;
@@ -145,10 +145,6 @@ impl BenchmarkId {
         }
     }
 
-    pub fn id(&self) -> &str {
-        &self.full_id
-    }
-
     pub fn as_title(&self) -> &str {
         &self.title
     }
@@ -284,7 +280,7 @@ pub trait Report {
         _formatter: &dyn ValueFormatter,
     ) {
     }
-    fn final_summary(&self, _context: &ReportContext) {}
+    fn final_summary(&self, _context: &ReportContext, _model: &Model) {}
 }
 
 pub struct Reports<'a> {
@@ -351,9 +347,9 @@ impl<'a> Report for Reports<'a> {
         }
     }
 
-    fn final_summary(&self, context: &ReportContext) {
+    fn final_summary(&self, context: &ReportContext, model: &Model) {
         for report in &self.reports {
-            report.final_summary(context);
+            report.final_summary(context, model);
         }
     }
 }

@@ -145,7 +145,7 @@ fn line_comparison_series_data<'a>(
             .push((*id, *bench))
     }
 
-    for (key, mut group) in function_id_to_benchmarks {
+    for (key, group) in function_id_to_benchmarks {
         // Unwrap is fine here because the caller shouldn't call this with non-numeric IDs.
         let mut tuples: Vec<_> = group
             .into_iter()

@@ -23,7 +23,9 @@ mod stats;
 mod value_formatter;
 
 use crate::config::{OutputFormat, PlottingBackend, SelfConfig, TextColor};
+use crate::connection::{AxisScale, PlotConfiguration};
 use crate::plot::Plotter;
+use crate::report::{Report, ReportContext};
 use anyhow::Error;
 use lazy_static::lazy_static;
 
@@ -58,12 +60,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: Add machine-readable output
     // TODO: Add alternate sampling modes (at least in the messaging)
     // TODO: Add support (at least in the messaging, so we can add it later) for multiple throughputs
-    // TODO: Implement charting
     // TODO: Document the code
     // TODO: Add a section to the user guide
     // TODO: Add support for timelines
     // TODO: Eliminate BTree Estimates & Distributions
-    // TODO: Reorganize reports.
+    // TODO: Reorganize report files.
+    // TODO: Stop criterion.rs producing its own reports when running with cargo-criterion
 
     let mut run_model = model::Model::load(self_config.criterion_home.clone(), "main".into());
 
@@ -104,6 +106,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    let final_context = ReportContext {
+        output_directory: self_config.criterion_home.join("reports"),
+        plot_config: PlotConfiguration {
+            summary_scale: AxisScale::Linear,
+        },
+    };
+
+    reports.final_summary(&final_context, &run_model);
     Ok(())
 }
 
