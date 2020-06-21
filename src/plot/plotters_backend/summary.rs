@@ -1,6 +1,5 @@
 use super::*;
 use crate::connection::AxisScale;
-use crate::estimate::Statistic;
 use crate::model::Benchmark;
 use linked_hash_map::LinkedHashMap;
 use plotters::coord::{AsRangedCoord, Shift};
@@ -122,14 +121,7 @@ fn line_comparison_series_data<'a>(
 ) -> (String, Vec<(Option<&'a String>, Vec<f64>, Vec<f64>)>) {
     let max = all_benchmarks
         .iter()
-        .map(|(_, bench)| {
-            bench
-                .latest_stats
-                .estimates
-                .get(&Statistic::Typical)
-                .unwrap()
-                .point_estimate
-        })
+        .map(|(_, bench)| bench.latest_stats.estimates.typical().point_estimate)
         .fold(::std::f64::NAN, f64::max);
 
     let mut dummy = [1.0];
@@ -151,12 +143,7 @@ fn line_comparison_series_data<'a>(
             .into_iter()
             .map(|(id, bench)| {
                 let x = id.as_number().unwrap();
-                let y = bench
-                    .latest_stats
-                    .estimates
-                    .get(&Statistic::Typical)
-                    .unwrap()
-                    .point_estimate;
+                let y = bench.latest_stats.estimates.typical().point_estimate;
 
                 (x, y)
             })

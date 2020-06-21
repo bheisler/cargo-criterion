@@ -1,13 +1,15 @@
 use crate::connection::Throughput;
-use crate::estimate::{build_estimates, ConfidenceInterval, Estimate};
-use crate::estimate::{Distributions, Estimates, Statistic};
+use crate::estimate::{build_change_estimates, build_estimates, ConfidenceInterval, Estimate};
+use crate::estimate::{
+    ChangeDistributions, ChangeEstimates, ChangePointEstimates, Distributions, Estimates,
+    PointEstimates,
+};
 use crate::report::MeasurementData;
 use crate::stats::bivariate::regression::Slope;
 use crate::stats::bivariate::Data;
 use crate::stats::univariate::outliers::tukey;
 use crate::stats::univariate::Sample;
 use crate::stats::{Distribution, Tails};
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
@@ -44,10 +46,8 @@ pub(crate) fn analysis<'a>(
     let (distribution, slope) = regression(&data, config);
     let (mut distributions, mut estimates) = estimates(avg_values, config);
 
-    estimates.insert(Statistic::Slope, slope);
-    estimates.insert(Statistic::Typical, slope);
-    distributions.insert(Statistic::Slope, distribution.clone());
-    distributions.insert(Statistic::Typical, distribution);
+    estimates.slope = slope;
+    distributions.slope = distribution;
 
     let compare_data = if let Some((old_sample, old_estimates)) = old_sample {
         let result = compare(avg_values, &old_sample, config);
@@ -135,24 +135,28 @@ fn estimates(avg_times: &Sample<f64>, config: &BenchmarkConfig) -> (Distribution
     let nresamples = config.nresamples;
 
     let (mean, std_dev, median, mad) = stats(avg_times);
-    let mut point_estimates = BTreeMap::new();
-    point_estimates.insert(Statistic::Mean, mean);
-    point_estimates.insert(Statistic::StdDev, std_dev);
-    point_estimates.insert(Statistic::Median, median);
-    point_estimates.insert(Statistic::MedianAbsDev, mad);
+    let points = PointEstimates {
+        mean,
+        median,
+        std_dev,
+        slope: mean,
+        median_abs_dev: mad,
+    };
 
     let (dist_mean, dist_stddev, dist_median, dist_mad) = elapsed!(
         "Bootstrapping the absolute statistics.",
         avg_times.bootstrap(nresamples, stats)
     );
 
-    let mut distributions = Distributions::new();
-    distributions.insert(Statistic::Mean, dist_mean);
-    distributions.insert(Statistic::StdDev, dist_stddev);
-    distributions.insert(Statistic::Median, dist_median);
-    distributions.insert(Statistic::MedianAbsDev, dist_mad);
+    let distributions = Distributions {
+        mean: dist_mean.clone(),
+        slope: dist_mean,
+        median: dist_median,
+        median_abs_dev: dist_mad,
+        std_dev: dist_stddev,
+    };
 
-    let estimates = build_estimates(&distributions, &point_estimates, cl);
+    let estimates = build_estimates(&distributions, &points, cl);
 
     (distributions, estimates)
 }
@@ -163,7 +167,13 @@ pub(crate) fn compare(
     new_avg_times: &Sample<f64>,
     old_values: &MeasuredValues,
     config: &BenchmarkConfig,
-) -> (f64, Distribution<f64>, Estimates, Distributions, Vec<f64>) {
+) -> (
+    f64,
+    Distribution<f64>,
+    ChangeEstimates,
+    ChangeDistributions,
+    Vec<f64>,
+) {
     let iters = old_values.iteration_count;
     let values = old_values.sample_values;
     let base_avg_values: Vec<f64> = iters
@@ -228,7 +238,7 @@ fn difference_estimates(
     avg_times: &Sample<f64>,
     base_avg_times: &Sample<f64>,
     config: &BenchmarkConfig,
-) -> (Estimates, Distributions) {
+) -> (ChangeEstimates, ChangeDistributions) {
     fn stats(a: &Sample<f64>, b: &Sample<f64>) -> (f64, f64) {
         (
             a.mean() / b.mean() - 1.,
@@ -244,16 +254,15 @@ fn difference_estimates(
         crate::stats::univariate::bootstrap(avg_times, base_avg_times, nresamples, stats)
     );
 
-    let mut distributions = Distributions::new();
-    distributions.insert(Statistic::Mean, dist_mean);
-    distributions.insert(Statistic::Median, dist_median);
+    let distributions = ChangeDistributions {
+        mean: dist_mean,
+        median: dist_median,
+    };
 
     let (mean, median) = stats(avg_times, base_avg_times);
-    let mut point_estimates = BTreeMap::new();
-    point_estimates.insert(Statistic::Mean, mean);
-    point_estimates.insert(Statistic::Median, median);
+    let points = ChangePointEstimates { mean, median };
 
-    let estimates = build_estimates(&distributions, &point_estimates, cl);
+    let estimates = build_change_estimates(&distributions, &points, cl);
 
     (estimates, distributions)
 }

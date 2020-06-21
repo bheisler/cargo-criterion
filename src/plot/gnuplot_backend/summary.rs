@@ -1,7 +1,6 @@
 use super::{debug_script, escape_underscores};
 use super::{DARK_BLUE, DEFAULT_FONT, KDE_POINTS, LINEWIDTH, POINT_SIZE, SIZE};
 use crate::connection::AxisScale;
-use crate::estimate::Statistic;
 use crate::kde;
 use crate::model::Benchmark;
 use crate::report::{BenchmarkId, ValueType};
@@ -69,13 +68,7 @@ pub fn line_comparison(
 
     let max = all_benchmarks
         .iter()
-        .map(|(_, ref data)| {
-            data.latest_stats
-                .estimates
-                .get(&Statistic::Typical)
-                .unwrap()
-                .point_estimate
-        })
+        .map(|(_, ref data)| data.latest_stats.estimates.typical().point_estimate)
         .fold(::std::f64::NAN, f64::max);
 
     let mut dummy = [1.0];
@@ -102,12 +95,7 @@ pub fn line_comparison(
             .into_iter()
             .map(|(id, benchmark)| {
                 let x = id.as_number().unwrap();
-                let y = benchmark
-                    .latest_stats
-                    .estimates
-                    .get(&Statistic::Typical)
-                    .unwrap()
-                    .point_estimate;
+                let y = benchmark.latest_stats.estimates.typical().point_estimate;
 
                 (x, y)
             })

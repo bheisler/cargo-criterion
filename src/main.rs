@@ -63,9 +63,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: Document the code
     // TODO: Add a section to the user guide
     // TODO: Add support for timelines
-    // TODO: Eliminate BTree Estimates & Distributions
     // TODO: Reorganize report files.
     // TODO: Stop criterion.rs producing its own reports when running with cargo-criterion
+    // TODO: Notify burntsushi/critcmp about the internal file format change after I've added support for flat sampling
 
     let mut run_model = model::Model::load(self_config.criterion_home.clone(), "main".into());
 

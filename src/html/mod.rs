@@ -2,7 +2,6 @@ use crate::report::{make_filename_safe, BenchmarkId, MeasurementData, Report, Re
 use crate::stats::bivariate::regression::Slope;
 
 use crate::estimate::Estimate;
-use crate::estimate::Statistic;
 use crate::format;
 use crate::model::{Benchmark as BenchmarkModel, BenchmarkGroup as GroupModel, Model};
 use crate::plot::{PlotContext, PlotData, Plotter};
@@ -11,7 +10,6 @@ use anyhow::{Context as AnyhowContext, Result};
 use linked_hash_set::LinkedHashSet;
 use serde::Serialize;
 use std::cell::RefCell;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs::File;
@@ -246,10 +244,6 @@ impl<'a> BenchmarkGroup<'a> {
             individual_links.insert((function_id, value), individual_link);
         }
 
-        fn parse_opt(os: &Option<&str>) -> Option<f64> {
-            os.and_then(|s| s.parse::<f64>().ok())
-        }
-
         let mut value_groups = Vec::with_capacity(values.len());
         for value in values.iter() {
             let row = function_ids
@@ -326,7 +320,7 @@ impl Report for Html {
             mkdirp(&report_dir)
         });
 
-        let slope_estimate = &measurements.absolute_estimates[&Statistic::Slope];
+        let slope_estimate = &measurements.absolute_estimates.slope;
 
         let time_interval = |est: &Estimate| -> ConfidenceInterval {
             ConfidenceInterval {
@@ -362,10 +356,10 @@ impl Report for Html {
             thumbnail_height: THUMBNAIL_SIZE.unwrap().1,
 
             slope: time_interval(slope_estimate),
-            mean: time_interval(&measurements.absolute_estimates[&Statistic::Mean]),
-            median: time_interval(&measurements.absolute_estimates[&Statistic::Median]),
-            mad: time_interval(&measurements.absolute_estimates[&Statistic::MedianAbsDev]),
-            std_dev: time_interval(&measurements.absolute_estimates[&Statistic::StdDev]),
+            mean: time_interval(&measurements.absolute_estimates.mean),
+            median: time_interval(&measurements.absolute_estimates.median),
+            mad: time_interval(&measurements.absolute_estimates.median_abs_dev),
+            std_dev: time_interval(&measurements.absolute_estimates.std_dev),
             throughput,
 
             r2: ConfidenceInterval {
@@ -513,7 +507,7 @@ impl Html {
     fn comparison(&self, measurements: &MeasurementData<'_>) -> Option<Comparison> {
         if let Some(ref comp) = measurements.comparison {
             let different_mean = comp.p_value < comp.significance_threshold;
-            let mean_est = comp.relative_estimates[&Statistic::Mean];
+            let mean_est = &comp.relative_estimates.mean;
             let explanation_str: String;
 
             if !different_mean {
@@ -728,7 +722,7 @@ enum ComparisonResult {
 }
 
 fn compare_to_threshold(estimate: &Estimate, noise: f64) -> ComparisonResult {
-    let ci = estimate.confidence_interval;
+    let ci = &estimate.confidence_interval;
     let lb = ci.lower_bound;
     let ub = ci.upper_bound;
 

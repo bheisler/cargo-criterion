@@ -8,10 +8,20 @@ pub(crate) use gnuplot_backend::Gnuplot;
 #[cfg(feature = "plotters_backend")]
 pub(crate) use plotters_backend::PlottersBackend;
 
+use crate::estimate::Statistic;
 use crate::model::Benchmark;
 use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext, ValueType};
 use crate::value_formatter::ValueFormatter;
 use std::path::PathBuf;
+
+const REPORT_STATS: [Statistic; 5] = [
+    Statistic::Mean,
+    Statistic::Median,
+    Statistic::MedianAbsDev,
+    Statistic::Slope,
+    Statistic::MedianAbsDev,
+];
+const CHANGE_STATS: [Statistic; 2] = [Statistic::Mean, Statistic::Median];
 
 #[derive(Clone, Copy)]
 pub(crate) struct PlotContext<'a> {
