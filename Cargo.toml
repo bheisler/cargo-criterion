@@ -21,6 +21,27 @@ log = "0.4"
 simplelog = "0.8"
 atty = "0.2"
 lazy_static = "1.4"
+itertools = "0.9"
+criterion-plot = { path="../plot", version="0.4.2", optional=true }
+tinytemplate = "1.0"
+linked-hash-map = "0.5"
+walkdir = "2.3"
+
+[dependencies.plotters]
+version = "^0.2.12"
+default-features = false
+features = ["svg", "area_series", "line_series"] 
+optional = true
+
+[features]
+default = ["gnuplot_backend", "plotters_backend"]
+
+# Enable the gnuplot plotting backend.
+gnuplot_backend = ["criterion-plot"]
+
+# Enable the plotters plotting backend.
+plotters_backend = ["plotters"]
+
 
 [dev-dependencies]
 approx = "0.3"

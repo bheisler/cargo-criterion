@@ -61,8 +61,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: Implement charting
     // TODO: Document the code
     // TODO: Add a section to the user guide
+    // TODO: Add support for timelines
 
-    let mut run_model = model::Model::new(self_config.criterion_home.clone(), "main".into());
+    let mut run_model = model::Model::load(self_config.criterion_home.clone(), "main".into());
 
     let cli_report = configure_cli_output(self_config);
     let bencher_report = crate::report::BencherReport;

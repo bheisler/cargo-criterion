@@ -324,10 +324,6 @@ impl Html {
     }
 }
 impl Report for Html {
-    fn requires_comparison(&self) -> bool {
-        true
-    }
-
     fn measurement_complete(
         &self,
         id: &BenchmarkId,
@@ -433,7 +429,6 @@ impl Report for Html {
         all_ids: &[BenchmarkId],
         formatter: &dyn ValueFormatter,
     ) {
-        // TODO
         /*let all_ids = all_ids
             .iter()
             .filter(|id| {

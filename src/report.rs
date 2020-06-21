@@ -283,10 +283,6 @@ pub trait Report {
     ) {
     }
     fn final_summary(&self, _context: &ReportContext) {}
-
-    /// Return true if this report uses the comparison data in the MeasurementData.
-    /// If the report doesn't need it, the old sample will not be loaded.
-    fn requires_comparison(&self) -> bool;
 }
 
 pub struct Reports<'a> {
@@ -356,10 +352,6 @@ impl<'a> Report for Reports<'a> {
         for report in &self.reports {
             report.final_summary(context);
         }
-    }
-
-    fn requires_comparison(&self) -> bool {
-        self.reports.iter().any(|r| r.requires_comparison())
     }
 }
 
@@ -707,10 +699,6 @@ impl Report for CliReport {
             );
         }
     }
-
-    fn requires_comparison(&self) -> bool {
-        self.show_differences
-    }
 }
 
 pub struct BencherReport;
@@ -745,10 +733,6 @@ impl Report for BencherReport {
             unit,
             format::integer(values[1])
         );
-    }
-
-    fn requires_comparison(&self) -> bool {
-        false
     }
 }
 

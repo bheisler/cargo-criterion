@@ -1,7 +1,6 @@
 use crate::connection::Throughput;
 use crate::estimate::{build_estimates, ConfidenceInterval, Estimate};
 use crate::estimate::{Distributions, Estimates, Statistic};
-use crate::report::BenchmarkId;
 use crate::report::MeasurementData;
 use crate::stats::bivariate::regression::Slope;
 use crate::stats::bivariate::Data;
@@ -30,7 +29,6 @@ pub struct MeasuredValues<'a> {
 
 // Common analysis procedure
 pub(crate) fn analysis<'a>(
-    id: &BenchmarkId,
     config: &BenchmarkConfig,
     throughput: Option<Throughput>,
     new_sample: MeasuredValues<'a>,
