@@ -89,13 +89,18 @@ pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>> {
         let message = message.context("Failed to parse message from cargo")?;
 
         if let Message::CompilerArtifact { target, executable } = message {
-            // We only care about benchmark artifacts
-            if target.kind.iter().any(|kind| kind == "bench") {
-                let bench = BenchTarget {
-                    name: target.name,
-                    executable: executable.expect("Benchmark artifact had no executable."),
-                };
-                benchmarks.push(bench);
+            if target
+                .kind
+                .iter()
+                // Benchmarks and tests have executables. Libraries might, if they expose tests.
+                .any(|kind| kind == "bench" || kind == "test" || kind == "lib")
+            {
+                if let Some(executable) = executable {
+                    benchmarks.push(BenchTarget {
+                        name: target.name,
+                        executable,
+                    });
+                }
             }
         }
     }

@@ -63,7 +63,7 @@ fn debug_context<S: Serialize + Debug>(path: &Path, context: &S) {
     if crate::debug_enabled() {
         let mut context_path = PathBuf::from(path);
         context_path.set_extension("json");
-        debug!("Writing report context to {:?}", context_path);
+        info!("Writing report context to {:?}", context_path);
         let result = save(context, &context_path);
         if let Err(e) = result {
             error!("Failed to write report context debug output: {}", e);

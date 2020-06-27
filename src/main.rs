@@ -55,16 +55,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let bench_targets = compile::compile(&configuration.cargo_args)?;
 
+    // Pre Merge:
     // TODO: Make sure that test & profile mode still works
-    // TODO: Add machine-readable output
-    // TODO: Add alternate sampling modes (at least in the messaging)
-    // TODO: Add support (at least in the messaging, so we can add it later) for multiple throughputs
     // TODO: Document the code
     // TODO: Add a section to the user guide
     // TODO: Add support for timelines
     // TODO: Reorganize report files.
     // TODO: Stop criterion.rs producing its own reports when running with cargo-criterion
+    // TODO: Fix reliance on Criterion.rs for the between-group newline.
+    // TODO: Write unit tests for serialization.
+    // Post Merge:
+    // TODO: Add machine-readable output
+    // TODO: Add alternate sampling modes (at least in the messaging)
+    // TODO: Add support (at least in the messaging, so we can add it later) for multiple throughputs
     // TODO: Notify burntsushi/critcmp about the internal file format change after I've added support for flat sampling
+    // TODO: Look through github issues and implement them in cargo-criterion if sensible.
+    // TODO: Split cargo-criterion into separate repo?
 
     let mut run_model = model::Model::load(self_config.criterion_home.clone(), "main".into());
 
