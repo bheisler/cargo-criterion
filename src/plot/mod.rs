@@ -48,7 +48,6 @@ impl<'a> PlotContext<'a> {
         path!(
             &self.context.output_directory,
             self.id.as_directory_name(),
-            "report",
             "lines.svg"
         )
     }
@@ -57,7 +56,6 @@ impl<'a> PlotContext<'a> {
         path!(
             &self.context.output_directory,
             self.id.as_directory_name(),
-            "report",
             "violin.svg"
         )
     }

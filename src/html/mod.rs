@@ -51,14 +51,6 @@ where
     Ok(())
 }
 
-fn is_dir<P>(path: &P) -> bool
-where
-    P: AsRef<Path>,
-{
-    let path: &Path = path.as_ref();
-    path.is_dir()
-}
-
 fn debug_context<S: Serialize + Debug>(path: &Path, context: &S) {
     if crate::debug_enabled() {
         let mut context_path = PathBuf::from(path);
@@ -153,7 +145,7 @@ struct Comparison {
 }
 
 fn if_exists(output_directory: &Path, path: &Path) -> Option<String> {
-    let report_path = path.join("report/index.html");
+    let report_path = path.join("index.html");
     if PathBuf::from(output_directory).join(&report_path).is_file() {
         Some(report_path.to_string_lossy().to_string())
     } else {
@@ -312,11 +304,7 @@ impl Report for Html {
         formatter: &dyn ValueFormatter,
     ) {
         try_else_return!({
-            let report_dir = path!(
-                &report_context.output_directory,
-                id.as_directory_name(),
-                "report"
-            );
+            let report_dir = path!(&report_context.output_directory, id.as_directory_name());
             mkdirp(&report_dir)
         });
 
@@ -391,7 +379,6 @@ impl Report for Html {
         let report_path = path!(
             &report_context.output_directory,
             id.as_directory_name(),
-            "report",
             "index.html"
         );
         debug_context(&report_path, &context);
@@ -478,9 +465,6 @@ impl Report for Html {
 
     fn final_summary(&self, report_context: &ReportContext, model: &Model) {
         let output_directory = &report_context.output_directory;
-        if !is_dir(&output_directory) {
-            return;
-        }
 
         let groups = model
             .groups
@@ -488,9 +472,9 @@ impl Report for Html {
             .map(|(id, group)| BenchmarkGroup::new(output_directory, id, &group))
             .collect::<Vec<BenchmarkGroup<'_>>>();
 
-        try_else_return!(mkdirp(&output_directory.join("report")));
+        try_else_return!(mkdirp(&output_directory));
 
-        let report_path = output_directory.join("report").join("index.html");
+        let report_path = output_directory.join("index.html");
 
         let context = IndexContext { groups };
 
@@ -601,22 +585,12 @@ impl Html {
 
         if let Some(ref comp) = measurements.comparison {
             try_else_return!({
-                let change_dir = path!(
-                    &context.output_directory,
-                    id.as_directory_name(),
-                    "report",
-                    "change"
-                );
+                let change_dir = path!(&context.output_directory, id.as_directory_name(), "change");
                 mkdirp(&change_dir)
             });
 
             try_else_return!({
-                let both_dir = path!(
-                    &context.output_directory,
-                    id.as_directory_name(),
-                    "report",
-                    "both"
-                );
+                let both_dir = path!(&context.output_directory, id.as_directory_name(), "both");
                 mkdirp(&both_dir)
             });
 
@@ -654,11 +628,7 @@ impl Html {
 
         try_else_return!(
             {
-                let report_dir = path!(
-                    &report_context.output_directory,
-                    id.as_directory_name(),
-                    "report"
-                );
+                let report_dir = path!(&report_context.output_directory, id.as_directory_name());
                 mkdirp(&report_dir)
             },
             || {}
@@ -681,7 +651,7 @@ impl Html {
             }
         }
 
-        let path_prefix = if full_summary { "../.." } else { "../../.." };
+        let path_prefix = if full_summary { ".." } else { "../.." };
         let benchmarks = data
             .iter()
             .map(|(ref id, _)| IndividualBenchmark::from_id(path_prefix, id))
@@ -702,7 +672,6 @@ impl Html {
         let report_path = path!(
             &report_context.output_directory,
             id.as_directory_name(),
-            "report",
             "index.html"
         );
         debug_context(&report_path, &context);

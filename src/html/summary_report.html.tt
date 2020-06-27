@@ -68,21 +68,21 @@
         {{- endif }}
         {{- for bench in benchmarks }}
         <section class="plots">
-            <a href="{bench.path}/report/index.html">
+            <a href="{bench.path}/index.html">
                 <h4>{bench.name}</h4>
             </a>
             <table width="100%">
                 <tbody>
                     <tr>
                         <td>
-                            <a href="{bench.path}/report/pdf.svg">
-                                <img src="{bench.path}/report/pdf_small.svg" alt="PDF of Slope" width="{thumbnail_width}"
+                            <a href="{bench.path}/pdf.svg">
+                                <img src="{bench.path}/pdf_small.svg" alt="PDF of Slope" width="{thumbnail_width}"
                                     height="{thumbnail_height}" />
                             </a>
                         </td>
                         <td>
-                            <a href="{bench.path}/report/regression.svg">
-                                <img src="{bench.path}/report/regression_small.svg" alt="Regression" width="{thumbnail_width}"
+                            <a href="{bench.path}/regression.svg">
+                                <img src="{bench.path}/regression_small.svg" alt="Regression" width="{thumbnail_width}"
                                     height="{thumbnail_height}" />
                             </a>
                         </td>

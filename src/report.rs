@@ -244,7 +244,6 @@ impl ReportContext {
         path!(
             self.output_directory.clone(),
             id.as_directory_name(),
-            "report",
             file_name
         )
     }
