@@ -56,14 +56,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bench_targets = compile::compile(&configuration.cargo_args)?;
 
     // Pre Merge:
-    // TODO: Make sure that test & profile mode still works
     // TODO: Document the code
     // TODO: Add a section to the user guide
     // TODO: Add support for timelines
     // TODO: Reorganize report files.
-    // TODO: Stop criterion.rs producing its own reports when running with cargo-criterion
-    // TODO: Fix reliance on Criterion.rs for the between-group newline.
-    // TODO: Write unit tests for serialization.
     // Post Merge:
     // TODO: Add machine-readable output
     // TODO: Add alternate sampling modes (at least in the messaging)
@@ -71,12 +67,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: Notify burntsushi/critcmp about the internal file format change after I've added support for flat sampling
     // TODO: Look through github issues and implement them in cargo-criterion if sensible.
     // TODO: Split cargo-criterion into separate repo?
+    // TODO: Write unit tests for serialization.
 
     let mut run_model = model::Model::load(self_config.criterion_home.clone(), "main".into());
 
     let cli_report = configure_cli_output(self_config);
     let bencher_report = crate::report::BencherReport;
-    let html_report = crate::html::Html::new(get_plotter(self_config)?);
+    let html_report = get_plotter(self_config)?.map(|plotter| crate::html::Html::new(plotter));
 
     let mut reports: Vec<&dyn crate::report::Report> = Vec::new();
     match self_config.output_format {
@@ -85,7 +82,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             reports.push(&cli_report)
         }
     }
-    reports.push(&html_report);
+    if let Some(html_report) = &html_report {
+        reports.push(html_report);
+    }
     let reports = crate::report::Reports::new(reports);
 
     if self_config.do_run {
@@ -175,11 +174,12 @@ fn plotters_plotter() -> Result<Box<dyn Plotter>, Error> {
 }
 
 #[cfg(any(feature = "gnuplot_backend", feature = "plotters_backend"))]
-fn get_plotter(config: &SelfConfig) -> Result<Box<dyn Plotter>, Error> {
+fn get_plotter(config: &SelfConfig) -> Result<Option<Box<dyn Plotter>>, Error> {
     match config.plotting_backend {
-        PlottingBackend::Gnuplot => gnuplot_plotter(),
-        PlottingBackend::Plotters => plotters_plotter(),
-        PlottingBackend::Auto => gnuplot_plotter().or(plotters_plotter()),
+        PlottingBackend::Gnuplot => gnuplot_plotter().map(|p| Some(p)),
+        PlottingBackend::Plotters => plotters_plotter().map(|p| Some(p)),
+        PlottingBackend::Auto => gnuplot_plotter().or(plotters_plotter()).map(|p| Some(p)),
+        PlottingBackend::Disabled => Ok(None),
     }
 }
 

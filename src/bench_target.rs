@@ -104,6 +104,7 @@ impl BenchTarget {
                 summary_scale: AxisScale::Linear,
             },
         };
+        let mut any_from_group_executed = false;
         loop {
             let message = conn.recv().with_context(|| {
                 format!(
@@ -117,6 +118,7 @@ impl BenchTarget {
             let message = message.unwrap();
             match message {
                 IncomingMessage::BeginningBenchmarkGroup { group } => {
+                    any_from_group_executed = false;
                     model.check_benchmark_group(&self.name, &group);
                 }
                 IncomingMessage::FinishedBenchmarkGroup { group } => {
@@ -125,9 +127,13 @@ impl BenchTarget {
                         let formatter =
                             crate::value_formatter::ConnectionValueFormatter::new(&mut conn);
                         report.summarize(&context, &group, benchmark_group, &formatter);
+                        if any_from_group_executed {
+                            report.group_separator();
+                        }
                     }
                 }
                 IncomingMessage::BeginningBenchmark { id } => {
+                    any_from_group_executed = true;
                     let mut id = id.into();
                     model.add_benchmark_id(&self.name, &mut id);
                     self.run_benchmark(&mut conn, report, model, id, &mut context)?;

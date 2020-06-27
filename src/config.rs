@@ -67,6 +67,7 @@ pub enum PlottingBackend {
     Gnuplot,
     Plotters,
     Auto,
+    Disabled,
 }
 impl PlottingBackend {
     fn from_str(s: &str) -> PlottingBackend {
@@ -74,6 +75,7 @@ impl PlottingBackend {
             "gnuplot" => PlottingBackend::Gnuplot,
             "plotters" => PlottingBackend::Plotters,
             "auto" => PlottingBackend::Auto,
+            "disabled" => PlottingBackend::Disabled,
             other => panic!("Unknown plotting backend: {}", other),
         }
     }
@@ -299,8 +301,8 @@ bencher: Emulates the output format of the bencher crate and nightly-only libtes
             Arg::with_name("plotting-backend")
                 .long("plotting-backend")
                 .takes_value(true)
-                .possible_values(&["gnuplot", "plotters"])
-                .help("Set the plotting backend. By default, cargo-criterion will use the gnuplot backend if gnuplot is available, or the plotters backend if it isn't."))
+                .possible_values(&["gnuplot", "plotters", "disabled"])
+                .help("Set the plotting backend. By default, cargo-criterion will use the gnuplot backend if gnuplot is available, or the plotters backend if it isn't. If set to 'disabled', plot generation will be disabled."))
         .arg(
             Arg::with_name("verbose")
                 .long("--verbose")
@@ -501,20 +503,17 @@ Compilation can be customized with the `bench` profile in the manifest.
     };
 
     let self_config = SelfConfig {
-        output_format: matches
-            .value_of("output-format")
+        output_format: (matches.value_of("output-format"))
             .or(toml_config.output_format.as_deref())
             .map(OutputFormat::from_str)
             .unwrap_or(OutputFormat::Criterion),
         criterion_home,
         do_run: !matches.is_present("no-run"),
         do_fail_fast: !matches.is_present("no-fail-fast"),
-        text_color: matches
-            .value_of("color")
+        text_color: (matches.value_of("color"))
             .map(TextColor::from_str)
             .unwrap_or(TextColor::Auto),
-        plotting_backend: matches
-            .value_of("plotting-backend")
+        plotting_backend: (matches.value_of("plotting-backend"))
             .or(toml_config.plotting_backend.as_deref())
             .map(PlottingBackend::from_str)
             .unwrap_or(PlottingBackend::Auto),

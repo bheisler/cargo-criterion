@@ -281,6 +281,7 @@ pub trait Report {
     ) {
     }
     fn final_summary(&self, _context: &ReportContext, _model: &Model) {}
+    fn group_separator(&self) {}
 }
 
 pub struct Reports<'a> {
@@ -350,6 +351,12 @@ impl<'a> Report for Reports<'a> {
     fn final_summary(&self, context: &ReportContext, model: &Model) {
         for report in &self.reports {
             report.final_summary(context, model);
+        }
+    }
+
+    fn group_separator(&self) {
+        for report in &self.reports {
+            report.group_separator();
         }
     }
 }
@@ -698,6 +705,10 @@ impl Report for CliReport {
             );
         }
     }
+
+    fn group_separator(&self) {
+        println!();
+    }
 }
 
 pub struct BencherReport;
@@ -732,6 +743,10 @@ impl Report for BencherReport {
             unit,
             format::integer(values[1])
         );
+    }
+
+    fn group_separator(&self) {
+        println!();
     }
 }
 
