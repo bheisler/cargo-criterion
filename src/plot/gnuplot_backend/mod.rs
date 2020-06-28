@@ -26,8 +26,8 @@ use super::{PlotContext, PlotData, Plotter};
 use crate::format;
 use crate::model::Benchmark;
 
-fn escape_underscores(string: &str) -> String {
-    string.replace("_", "\\_")
+fn gnuplot_escape(string: &str) -> String {
+    string.replace("_", "\\_").replace("'", "''")
 }
 
 static DEFAULT_FONT: &str = "Helvetica";
