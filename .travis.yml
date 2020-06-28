@@ -27,7 +27,7 @@ matrix:
       rust: stable
     - os: linux
       env: GNUPLOT=yes
-      rust: 1.34.0
+      rust: 1.40.0
       addons:
         apt:
           packages:

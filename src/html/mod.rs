@@ -225,8 +225,8 @@ impl<'a> BenchmarkGroup<'a> {
         let mut individual_links = HashMap::with_capacity(group.benchmarks.len());
 
         for id in group.benchmarks.keys() {
-            let function_id = id.function_id.as_ref().map(String::as_str);
-            let value = id.value_str.as_ref().map(String::as_str);
+            let function_id = id.function_id.as_deref();
+            let value = id.value_str.as_deref();
 
             let individual_link = ReportLink::individual(output_directory, id);
 
