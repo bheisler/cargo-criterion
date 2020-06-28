@@ -1,0 +1,66 @@
+sudo: false
+
+language: rust
+
+cache: cargo
+
+rust:
+  - stable
+
+os:
+  - linux
+  - osx
+
+matrix:
+  include:
+    - os: linux
+      env: GNUPLOT=yes
+      addons:
+        apt:
+          packages:
+            - gnuplot
+    - os: linux
+      env: CLIPPY=yes
+      rust: stable
+    - os: linux
+      env: RUSTFMT=yes
+      rust: stable
+    - os: linux
+      env: GNUPLOT=yes
+      rust: 1.33.0
+      addons:
+        apt:
+          packages:
+            - gnuplot
+    - os: linux
+      env: GNUPLOT=no
+      rust: nightly
+    - os: linux
+      env: GNUPLOT=yes
+      rust: nightly
+      addons:
+        apt:
+          packages:
+            - gnuplot
+    - os: osx
+      env: GNUPLOT=yes
+    - os: osx
+      env: GNUPLOT=no
+      rust: nightly
+    - os: osx
+      env: GNUPLOT=yes
+      rust: nightly
+    - os: linux
+      env: MINIMAL_VERSIONS=yes
+      rust: nightly
+
+
+install:
+  - sh ci/install.sh
+
+script:
+  - sh ci/script.sh
+
+notifications:
+  email:
+    on_success: never
