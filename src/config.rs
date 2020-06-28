@@ -109,6 +109,8 @@ pub struct FullConfig {
     pub additional_args: Vec<OsString>,
 }
 
+/// Parse the command-line arguments, load the Criterion.toml config file, and generate a
+/// configuration object used for the rest of the run.
 pub fn configure() -> Result<FullConfig, anyhow::Error> {
     use clap::{App, AppSettings, Arg};
 
@@ -380,6 +382,7 @@ Compilation can be customized with the `bench` profile in the manifest.
         )
         .get_matches();
 
+    // Load the config file.
     let criterion_manifest_file: PathBuf = matches
         .value_of_os("criterion-manifest-file")
         .map(ToOwned::to_owned)
@@ -388,6 +391,8 @@ Compilation can be customized with the `bench` profile in the manifest.
 
     let toml_config = load_toml_file(&criterion_manifest_file)?;
 
+    // Many arguments have to be passed along to Cargo, so construct the list of cargo arguments
+    // here.
     let mut cargo_args: Vec<OsString> = vec![];
     if matches.is_present("lib") {
         cargo_args.push("--lib".into());
@@ -519,6 +524,7 @@ Compilation can be customized with the `bench` profile in the manifest.
             .unwrap_or(PlottingBackend::Auto),
     };
 
+    // These are the extra arguments to be passed to the benchmark targets.
     let mut additional_args: Vec<OsString> = vec![];
     additional_args.extend(matches.value_of_os("BENCHNAME").map(ToOwned::to_owned));
 
@@ -534,6 +540,7 @@ Compilation can be customized with the `bench` profile in the manifest.
     Ok(configuration)
 }
 
+/// Load & parse the Criterion.toml file (if present).
 fn load_toml_file(toml_path: &Path) -> Result<TomlConfig, anyhow::Error> {
     if !toml_path.exists() {
         return Ok(TomlConfig::default());

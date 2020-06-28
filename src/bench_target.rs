@@ -14,6 +14,17 @@ pub struct BenchTarget {
     pub executable: PathBuf,
 }
 impl BenchTarget {
+    /// Launches this benchmark target with the given additional arguments.
+    ///
+    /// Opens a localhost socket on an arbitrary port. This port is passed to the target in an
+    /// environment variable; recent versions of Criterion.rs will connect to that socket and use
+    /// it to communicate information about the status of the run and the measurements taken. Other
+    /// benchmark frameworks (or older versions of Criterion.rs) will ignore the port and perform
+    /// their benchmarks as they normally do.
+    ///
+    /// The report will be notified about important events happening with the benchmark and the
+    /// model will be updated with the new benchmark IDs and measurements as we go. This function
+    /// will block until the benchmark target terminates.
     pub fn execute(
         &self,
         criterion_home: &PathBuf,
@@ -22,7 +33,7 @@ impl BenchTarget {
         model: &mut Model,
     ) -> Result<()> {
         let listener = TcpListener::bind("localhost:0")
-            .context("Unable to open socket to conect to Criterion.rs")?;
+            .context("Unable to open socket to connect to Criterion.rs")?;
         listener
             .set_nonblocking(true)
             .context("Unable to set socket to nonblocking")?;
@@ -90,6 +101,9 @@ impl BenchTarget {
         }
     }
 
+    /// This function is called when a benchmark connects to the socket. It interacts with the
+    /// benchmark target to receive information about the measurements and inform the report and
+    /// model about the benchmarks. This function returns when the benchmark target terminates.
     fn communicate(
         &self,
         child: &mut Child,
@@ -168,6 +182,7 @@ impl BenchTarget {
         }
     }
 
+    /// Helper function for communicating with the benchmark target about a single benchmark.
     fn run_benchmark(
         &self,
         conn: &mut Connection,

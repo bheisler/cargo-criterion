@@ -50,6 +50,11 @@ const BENCHMARK_HELLO_SIZE: usize = BENCHMARK_MAGIC_NUMBER.len() // magic number
     + size_of::<u16>() // protocol version
     + size_of::<u16>(); // protocol format
 
+/// This struct represents an open socket connection to a Criterion.rs benchmark.
+///
+/// When the benchmark connects, a small handshake is performed to verify that we've connected to
+/// the right process and that the version of Criterion.rs on the other side is valid, etc.
+/// Afterwards, we exchange messages (currently using CBOR) with the benchmark.
 #[derive(Debug)]
 pub struct Connection {
     socket: TcpStream,
@@ -61,6 +66,7 @@ pub struct Connection {
     protocol_format: ProtocolFormat,
 }
 impl Connection {
+    /// Perform the connection handshake and wrap the TCP stream in a Connection object if successful.
     pub fn new(mut socket: TcpStream) -> Result<Self> {
         // Send the runner-hello message.
         let mut hello_buf = [0u8; RUNNER_HELLO_SIZE];
@@ -104,6 +110,8 @@ impl Connection {
         })
     }
 
+    /// Receive a message from the benchmark. If the benchmark has closed the connection, returns
+    /// Ok(None).
     pub fn recv<T: DeserializeOwned>(&mut self) -> Result<Option<T>> {
         let mut length_buf = [0u8; 4];
         match self.socket.read_exact(&mut length_buf) {
@@ -121,6 +129,7 @@ impl Connection {
         Ok(Some(value))
     }
 
+    /// Send a message to the benchmark.
     pub fn send(&mut self, message: &OutgoingMessage) -> Result<()> {
         self.send_buffer.truncate(0);
         serde_cbor::to_writer(&mut self.send_buffer, message)

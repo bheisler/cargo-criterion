@@ -45,6 +45,9 @@ impl Default for BenchmarkGroup {
     }
 }
 
+/// The Model struct stores everything that we keep in-memory about the benchmarks and their
+/// performance. It's loaded from disk at the beginning of a run and updated as benchmarks
+/// are executed.
 #[derive(Debug)]
 pub struct Model {
     // Path to output directory
@@ -52,10 +55,13 @@ pub struct Model {
     // Track all of the unique benchmark titles and directories we've seen, so we can uniquify them.
     all_titles: HashSet<String>,
     all_directories: HashSet<PathBuf>,
-
+    // All of the known benchmark groups, stored in execution order (where possible).
     pub groups: LinkedHashMap<String, BenchmarkGroup>,
 }
 impl Model {
+    /// Load the model from disk. The output directory is scanned for benchmark files. Any files
+    /// found are loaded into the model so that we can include them in the reports even if this
+    /// run doesn't execute that particular benchmark.
     pub fn load(criterion_home: PathBuf, timeline: PathBuf) -> Model {
         let mut model = Model {
             data_directory: path!(criterion_home, "data", timeline),
