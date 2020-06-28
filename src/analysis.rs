@@ -1,4 +1,4 @@
-use crate::connection::Throughput;
+use crate::connection::{SamplingMethod, Throughput};
 use crate::estimate::{build_change_estimates, build_estimates, ConfidenceInterval, Estimate};
 use crate::estimate::{
     ChangeDistributions, ChangeEstimates, ChangePointEstimates, Distributions, Estimates,
@@ -35,6 +35,7 @@ pub(crate) fn analysis<'a>(
     throughput: Option<Throughput>,
     new_sample: MeasuredValues<'a>,
     old_sample: Option<(MeasuredValues<'a>, &'a Estimates)>,
+    sampling_method: SamplingMethod,
 ) -> MeasurementData<'a> {
     let iters = new_sample.iteration_count;
     let values = new_sample.sample_values;
@@ -43,11 +44,13 @@ pub(crate) fn analysis<'a>(
 
     let data = Data::new(&iters, &values);
     let labeled_sample = tukey::classify(avg_values);
-    let (distribution, slope) = regression(&data, config);
     let (mut distributions, mut estimates) = estimates(avg_values, config);
 
-    estimates.slope = slope;
-    distributions.slope = distribution;
+    if sampling_method.is_linear() {
+        let (distribution, slope) = regression(&data, config);
+        estimates.slope = Some(slope);
+        distributions.slope = Some(distribution);
+    }
 
     let compare_data = if let Some((old_sample, old_estimates)) = old_sample {
         let (t_value, t_distribution, relative_estimates, relative_distributions, base_avg_times) =
@@ -130,7 +133,6 @@ fn estimates(avg_times: &Sample<f64>, config: &BenchmarkConfig) -> (Distribution
         mean,
         median,
         std_dev,
-        slope: mean,
         median_abs_dev: mad,
     };
 
@@ -140,8 +142,8 @@ fn estimates(avg_times: &Sample<f64>, config: &BenchmarkConfig) -> (Distribution
     );
 
     let distributions = Distributions {
-        mean: dist_mean.clone(),
-        slope: dist_mean,
+        mean: dist_mean,
+        slope: None,
         median: dist_median,
         median_abs_dev: dist_mad,
         std_dev: dist_stddev,

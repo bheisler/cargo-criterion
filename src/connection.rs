@@ -254,6 +254,14 @@ pub enum SamplingMethod {
     Linear,
     Flat,
 }
+impl SamplingMethod {
+    pub fn is_linear(&self) -> bool {
+        match self {
+            SamplingMethod::Linear => true,
+            _ => false,
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 struct Duration {

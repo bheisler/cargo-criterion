@@ -14,11 +14,12 @@ use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext,
 use crate::value_formatter::ValueFormatter;
 use std::path::PathBuf;
 
-const REPORT_STATS: [Statistic; 5] = [
+const REPORT_STATS: [Statistic; 6] = [
+    Statistic::Typical,
+    Statistic::Slope,
     Statistic::Mean,
     Statistic::Median,
     Statistic::MedianAbsDev,
-    Statistic::Slope,
     Statistic::MedianAbsDev,
 ];
 const CHANGE_STATS: [Statistic; 2] = [Statistic::Mean, Statistic::Median];
@@ -77,6 +78,8 @@ impl<'a> PlotData<'a> {
 
 pub(crate) trait Plotter {
     fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+
+    fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
 
     fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
 

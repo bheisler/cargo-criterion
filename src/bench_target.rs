@@ -219,7 +219,7 @@ impl BenchTarget {
                     iters,
                     times,
                     plot_config,
-                    sampling_method: _,
+                    sampling_method,
                     benchmark_config,
                 } => {
                     context.plot_config = plot_config;
@@ -249,6 +249,7 @@ impl BenchTarget {
                             };
                             (measured_values, &stats.estimates)
                         }),
+                        sampling_method,
                     );
 
                     if let Err(e) = model.benchmark_complete(&id, &measured_data) {
