@@ -13,7 +13,8 @@ elif [ "$DOCS" = "yes" ]; then
 elif [ "$RUSTFMT" = "yes" ]; then
     cargo fmt --all -- --check
 else
-    cargo check --no-default-features
+    export RUSTFLAGS="-D warnings"
+
     cargo check --no-default-features --features gnuplot_backend
     cargo check --no-default-features --features plotters_backend
 
