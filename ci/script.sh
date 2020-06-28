@@ -12,9 +12,6 @@ elif [ "$DOCS" = "yes" ]; then
     travis-cargo doc-upload || true
 elif [ "$RUSTFMT" = "yes" ]; then
     cargo fmt --all -- --check
-elif [ "$MINIMAL_VERSIONS" = "yes" ]; then
-    rm Cargo.lock || true
-    cargo build -Z minimal-versions
 else
     cargo check --no-default-features
     cargo check --no-default-features --features gnuplot_backend

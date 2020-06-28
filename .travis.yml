@@ -44,9 +44,6 @@ matrix:
             - gnuplot
     - os: osx
       env: GNUPLOT=yes
-    - os: linux
-      env: MINIMAL_VERSIONS=yes
-      rust: nightly
 
 
 install:
