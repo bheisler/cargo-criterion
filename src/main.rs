@@ -8,6 +8,7 @@
     allow(
         clippy::just_underscores_and_digits, // Used in the stats code
         clippy::transmute_ptr_to_ptr, // Used in the stats code
+        clippy::option_as_ref_deref, // Remove when MSRV bumped above 1.40
     )
 )]
 
@@ -198,9 +199,9 @@ fn plotters_plotter() -> Result<Box<dyn Plotter>, Error> {
 #[cfg(any(feature = "gnuplot_backend", feature = "plotters_backend"))]
 fn get_plotter(config: &SelfConfig) -> Result<Option<Box<dyn Plotter>>, Error> {
     match config.plotting_backend {
-        PlottingBackend::Gnuplot => gnuplot_plotter().map(|p| Some(p)),
-        PlottingBackend::Plotters => plotters_plotter().map(|p| Some(p)),
-        PlottingBackend::Auto => gnuplot_plotter().or(plotters_plotter()).map(|p| Some(p)),
+        PlottingBackend::Gnuplot => gnuplot_plotter().map(Some),
+        PlottingBackend::Plotters => plotters_plotter().map(Some),
+        PlottingBackend::Auto => gnuplot_plotter().or_else(|_| plotters_plotter()).map(Some),
         PlottingBackend::Disabled => Ok(None),
     }
 }

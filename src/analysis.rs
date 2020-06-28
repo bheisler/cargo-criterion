@@ -50,31 +50,22 @@ pub(crate) fn analysis<'a>(
     distributions.slope = distribution;
 
     let compare_data = if let Some((old_sample, old_estimates)) = old_sample {
-        let result = compare(avg_values, &old_sample, config);
-        match result {
-            (
-                t_value,
-                t_distribution,
-                relative_estimates,
-                relative_distributions,
-                base_avg_times,
-            ) => {
-                let p_value = t_distribution.p_value(t_value, &Tails::Two);
-                Some(crate::report::ComparisonData {
-                    p_value,
-                    t_distribution,
-                    t_value,
-                    relative_estimates,
-                    relative_distributions,
-                    significance_threshold: config.significance_level,
-                    noise_threshold: config.noise_threshold,
-                    base_iter_counts: old_sample.iteration_count.iter().copied().collect(),
-                    base_sample_times: old_sample.sample_values.iter().copied().collect(),
-                    base_avg_times,
-                    base_estimates: old_estimates.clone(),
-                })
-            }
-        }
+        let (t_value, t_distribution, relative_estimates, relative_distributions, base_avg_times) =
+            compare(avg_values, &old_sample, config);
+        let p_value = t_distribution.p_value(t_value, &Tails::Two);
+        Some(crate::report::ComparisonData {
+            p_value,
+            t_distribution,
+            t_value,
+            relative_estimates,
+            relative_distributions,
+            significance_threshold: config.significance_level,
+            noise_threshold: config.noise_threshold,
+            base_iter_counts: old_sample.iteration_count.iter().copied().collect(),
+            base_sample_times: old_sample.sample_values.iter().copied().collect(),
+            base_avg_times,
+            base_estimates: old_estimates.clone(),
+        })
     } else {
         None
     };
@@ -187,8 +178,6 @@ pub(crate) fn compare(
 
     let (estimates, relative_distributions) =
         difference_estimates(new_avg_times, base_avg_value_sample, config);
-
-    std::mem::drop(base_avg_value_sample);
 
     (
         t_statistic,

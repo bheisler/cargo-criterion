@@ -111,6 +111,7 @@ pub struct FullConfig {
 
 /// Parse the command-line arguments, load the Criterion.toml config file, and generate a
 /// configuration object used for the rest of the run.
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::or_fun_call))]
 pub fn configure() -> Result<FullConfig, anyhow::Error> {
     use clap::{App, AppSettings, Arg};
 

@@ -76,9 +76,8 @@ impl Model {
             .filter_map(::std::result::Result::ok)
             .filter(|entry| entry.file_name() == OsStr::new("benchmark.cbor"))
         {
-            match model.load_stored_benchmark(entry.path()) {
-                Err(e) => error!("Encountered error while loading stored data: {}", e),
-                _ => (),
+            if let Err(e) = model.load_stored_benchmark(entry.path()) {
+                error!("Encountered error while loading stored data: {}", e)
             }
         }
 
@@ -105,7 +104,7 @@ impl Model {
 
         self.groups
             .entry(benchmark_record.id.group_id.clone())
-            .or_insert_with(|| Default::default())
+            .or_insert_with(Default::default)
             .benchmarks
             .insert(benchmark_record.id.into(), Benchmark::new(saved_stats));
         Ok(())
@@ -122,7 +121,7 @@ impl Model {
         let group = self
             .groups
             .entry(id.group_id.clone())
-            .or_insert_with(|| Default::default());
+            .or_insert_with(Default::default);
 
         if let Some(mut benchmark) = group.benchmarks.remove(id) {
             if let Some(target) = &benchmark.target {
@@ -258,7 +257,7 @@ impl From<SavedBenchmarkId> for BenchmarkId {
 }
 impl From<&SavedBenchmarkId> for BenchmarkId {
     fn from(other: &SavedBenchmarkId) -> Self {
-        other.clone().into()
+        other.into()
     }
 }
 
