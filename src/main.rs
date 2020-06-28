@@ -48,14 +48,10 @@ fn configure_log() {
     TermLogger::init(filter, Default::default(), TerminalMode::Stderr).unwrap();
 }
 
-// Pre Merge:
 // TODO: Add a section to the user guide
 // TODO: Configure CI for cargo-criterion
-// Post Merge:
 // TODO: Add support for timelines & historical charts
 // TODO: Add machine-readable output
-// TODO: Add alternate sampling modes (at least in the messaging)
-// TODO: Add support (at least in the messaging, so we can add it later) for multiple throughputs
 // TODO: Notify burntsushi/critcmp about the internal file format change after I've added support for flat sampling
 // TODO: Look through github issues and implement them in cargo-criterion if sensible.
 // TODO: Split cargo-criterion into separate repo?

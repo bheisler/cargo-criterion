@@ -219,7 +219,7 @@ pub struct RawBenchmarkId {
     group_id: String,
     function_id: Option<String>,
     value_str: Option<String>,
-    throughput: Option<Throughput>,
+    throughput: Vec<Throughput>,
 }
 impl From<RawBenchmarkId> for crate::report::BenchmarkId {
     fn from(other: RawBenchmarkId) -> Self {
@@ -227,7 +227,7 @@ impl From<RawBenchmarkId> for crate::report::BenchmarkId {
             other.group_id,
             other.function_id,
             other.value_str,
-            other.throughput,
+            other.throughput.first().cloned(),
         )
     }
 }
@@ -252,6 +252,7 @@ pub enum Throughput {
 #[derive(Debug, Deserialize)]
 pub enum SamplingMethod {
     Linear,
+    Flat,
 }
 
 #[derive(Debug, Deserialize)]
