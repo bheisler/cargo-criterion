@@ -1,6 +1,6 @@
 use super::*;
-use crate::value_formatter::ValueFormatter;
 use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
+use crate::value_formatter::ValueFormatter;
 use plotters::data;
 use plotters::style::RGBAColor;
 use std::path::Path;
