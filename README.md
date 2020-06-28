@@ -79,3 +79,4 @@ cargo-criterion was originally developed and is currently maintained by Brook He
 ### License
 
 cargo-criterion is dual licensed under the Apache 2.0 license and the MIT license.
+
