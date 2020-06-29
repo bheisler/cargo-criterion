@@ -66,9 +66,15 @@ enum Message {
 /// list out the benchmarks and their executables and parses that information. This compiles the
 /// benchmarks but doesn't run them. Returns information on the compiled benchmarks that we can use
 /// to run them directly.
-pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>> {
+pub fn compile(debug_build: bool, cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>> {
+    let subcommand: &[&'static str] = if debug_build {
+        &["test", "--benches"]
+    } else {
+        &["bench"]
+    };
+
     let mut cargo = Command::new("cargo")
-        .arg("bench")
+        .args(subcommand)
         .args(cargo_args)
         .args(&["--no-run", "--message-format", "json"])
         .stdin(Stdio::null())
@@ -87,7 +93,6 @@ pub fn compile(cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>> {
     let mut benchmarks = vec![];
     for message in stream {
         let message = message.context("Failed to parse message from cargo")?;
-
         if let Message::CompilerArtifact { target, executable } = message {
             if target
                 .kind

@@ -96,6 +96,8 @@ pub struct SelfConfig {
     pub text_color: TextColor,
     /// Which plotting backend to use?
     pub plotting_backend: PlottingBackend,
+    /// Should we compile the benchmarks in debug mode (true) or release mode (false, default)
+    pub debug_build: bool,
 }
 
 /// Overall struct that represents all of the configuration data for this run.
@@ -276,6 +278,19 @@ pub fn configure() -> Result<FullConfig, anyhow::Error> {
             Arg::with_name("no-fail-fast")
                 .long("--no-fail-fast")
                 .help("Run all benchmarks regardless of failure"),
+        )
+        .arg(
+            Arg::with_name("debug")
+                .long("--debug")
+                .help("Build the benchmarks in debug mode.")
+                .long_help(
+"This option will compile the benchmarks with the 'test' profile, which by default means they will
+not be optimized. This may be useful to reduce compile time when benchmarking code written in a
+different language (eg. external C modules).
+
+Note however that it will tend to increase the measurement overhead, as the measurement loops 
+in the benchmark will not be optimized either. This may result in less-accurate measurements.
+")
         )
         .arg(
             Arg::with_name("output-format")
@@ -523,6 +538,7 @@ Compilation can be customized with the `bench` profile in the manifest.
             .or(toml_config.plotting_backend.as_deref())
             .map(PlottingBackend::from_str)
             .unwrap_or(PlottingBackend::Auto),
+        debug_build: matches.is_present("debug"),
     };
 
     // These are the extra arguments to be passed to the benchmark targets.

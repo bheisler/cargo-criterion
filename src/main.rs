@@ -77,7 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let self_config = &configuration.self_config;
 
     // Launch cargo to compile the crate and produce a list of the benchmark targets to run.
-    let bench_targets = compile::compile(&configuration.cargo_args)?;
+    let bench_targets = compile::compile(self_config.debug_build, &configuration.cargo_args)?;
 
     // Load the saved measurements from the last run.
     let mut run_model = model::Model::load(self_config.criterion_home.clone(), "main".into());
