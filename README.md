@@ -34,6 +34,8 @@ reporting on [Criterion-rs](https://github.com/bheisler/criterion.rs) benchmarks
 ### Quickstart
 
 This assumes that you already have benchmarks which use Criterion-rs. If not, see [the Criterion-rs Quickstart Guide](https://github.com/bheisler/criterion.rs#quickstart).
+Note that Criterion.rs version 0.3.3 or later is recommended. Benchmarks which do not use Criterion.rs, or which use an earlier version, will run correctly but will not
+benefit from some of cargo-criterion's features.
 
 First install cargo-criterion:
 
