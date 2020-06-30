@@ -76,7 +76,7 @@ pub fn compile(debug_build: bool, cargo_args: &[std::ffi::OsString]) -> Result<V
     let mut cargo = Command::new("cargo")
         .args(subcommand)
         .args(cargo_args)
-        .args(&["--no-run", "--message-format", "json"])
+        .args(&["--no-run", "--message-format", "json-render-diagnostics"])
         .stdin(Stdio::null())
         .stderr(Stdio::inherit()) // Cargo writes its normal compile output to stderr
         .stdout(Stdio::piped()) // Capture the JSON messages on stdout
@@ -114,22 +114,6 @@ pub fn compile(debug_build: bool, cargo_args: &[std::ffi::OsString]) -> Result<V
         .wait()
         .context("Cargo compilation failed in an unexpected way")?;
     if !(exit_status.success()) {
-        // If the compile failed, the user will probably want to see the error messages.
-        // message-format json means that the compiler will send them to us instead of the
-        // terminal, and I don't want to have to figure out how to display those messages,
-        // so instead just try again without --message-format.
-        error!("Compile failed; running compile again to show error messages");
-
-        Command::new("cargo")
-            .arg("bench")
-            .args(cargo_args)
-            .args(&["--no-run"])
-            .stdin(Stdio::inherit())
-            .stderr(Stdio::inherit()) // Cargo writes its normal compile output to stderr
-            .stdout(Stdio::inherit()) // Capture the JSON messages on stdout
-            .spawn()?
-            .wait()?;
-
         Err(CompileError::CompileFailed(exit_status).into())
     } else {
         Ok(benchmarks)
