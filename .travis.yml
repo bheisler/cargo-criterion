@@ -55,7 +55,9 @@ script:
 before_cache:
 - find ./target/debug -maxdepth 1 -type f -delete
 - rm -rf ./target/debug/deps/*cargo*criterion*
+- rm -rf ./target/debug/deps/*test_benchmark*
 - rm -rf ./target/debug/.fingerprint/*cargo*criterion*
+- rm -rf ./target/debug/.fingerprint/*test_benchmark*
 - rm -f  ./target/.rustc_info.json
 - rm -rf ./target/criterion
 
