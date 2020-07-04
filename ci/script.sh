@@ -18,10 +18,9 @@ elif [ "$INTEGRATION_TESTS" = "yes" ]; then
     cargo build
     cd integration_tests
     if [ "$GNUPLOT" = "yes" ]; then
-        cargo test --ignored
-    else
-        cargo test
+        cargo test -- --format=pretty --nocapture --ignored
     fi
+    cargo test -- --format=pretty --nocapture
 
 else
     export RUSTFLAGS="-D warnings"
