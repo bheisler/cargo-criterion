@@ -56,17 +56,23 @@ enum Message {
     CompilerMessage {},
 
     #[serde(rename = "build-script-executed")]
-    BuildScriptExecuted {},
+    BuildScriptExecuted { linked_paths: Vec<String> },
 
     #[serde(rename = "build-finished")]
     BuildFinished {},
+}
+
+#[derive(Debug)]
+pub struct CompiledBenchmarks {
+    pub targets: Vec<BenchTarget>,
+    pub library_paths: Vec<PathBuf>,
 }
 
 /// Launches `cargo bench` with the given additional arguments, with some additional arguments to
 /// list out the benchmarks and their executables and parses that information. This compiles the
 /// benchmarks but doesn't run them. Returns information on the compiled benchmarks that we can use
 /// to run them directly.
-pub fn compile(debug_build: bool, cargo_args: &[std::ffi::OsString]) -> Result<Vec<BenchTarget>> {
+pub fn compile(debug_build: bool, cargo_args: &[std::ffi::OsString]) -> Result<CompiledBenchmarks> {
     let subcommand: &[&'static str] = if debug_build {
         &["test", "--benches"]
     } else {
@@ -90,23 +96,39 @@ pub fn compile(debug_build: bool, cargo_args: &[std::ffi::OsString]) -> Result<V
     let stream = serde_json::Deserializer::from_reader(cargo_stdout).into_iter::<Message>();
 
     // Collect the benchmark artifacts from the message stream
-    let mut benchmarks = vec![];
+    let mut targets = vec![];
+    let mut library_paths = vec![];
     for message in stream {
         let message = message.context("Failed to parse message from cargo")?;
-        if let Message::CompilerArtifact { target, executable } = message {
-            if target
-                .kind
-                .iter()
-                // Benchmarks and tests have executables. Libraries might, if they expose tests.
-                .any(|kind| kind == "bench" || kind == "test" || kind == "lib")
-            {
-                if let Some(executable) = executable {
-                    benchmarks.push(BenchTarget {
-                        name: target.name,
-                        executable,
-                    });
+        match message {
+            Message::CompilerArtifact { target, executable } => {
+                if target
+                    .kind
+                    .iter()
+                    // Benchmarks and tests have executables. Libraries might, if they expose tests.
+                    .any(|kind| kind == "bench" || kind == "test" || kind == "lib")
+                {
+                    if let Some(executable) = executable {
+                        targets.push(BenchTarget {
+                            name: target.name,
+                            executable,
+                        });
+                    }
                 }
             }
+            Message::BuildScriptExecuted { linked_paths } => {
+                for path in linked_paths {
+                    let path = path
+                        .replace("dependency=", "")
+                        .replace("crate=", "")
+                        .replace("native=", "")
+                        .replace("framework=", "")
+                        .replace("all=", "");
+                    let path = PathBuf::from(path);
+                    library_paths.push(path);
+                }
+            }
+            _ => (),
         }
     }
 
@@ -116,6 +138,9 @@ pub fn compile(debug_build: bool, cargo_args: &[std::ffi::OsString]) -> Result<V
     if !(exit_status.success()) {
         Err(CompileError::CompileFailed(exit_status).into())
     } else {
-        Ok(benchmarks)
+        Ok(CompiledBenchmarks {
+            targets,
+            library_paths,
+        })
     }
 }

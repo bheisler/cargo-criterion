@@ -29,6 +29,7 @@ impl BenchTarget {
         &self,
         criterion_home: &PathBuf,
         additional_args: &[OsString],
+        library_paths: &[PathBuf],
         report: &dyn Report,
         model: &mut Model,
     ) -> Result<()> {
@@ -47,6 +48,7 @@ impl BenchTarget {
         command
             .arg("--bench")
             .args(additional_args)
+            .env(dylib_path_envvar(), dylib_search_path(library_paths)?)
             .env("CRITERION_HOME", criterion_home)
             .env("CARGO_CRITERION_PORT", &port.to_string())
             .stdin(Stdio::null())
@@ -271,4 +273,38 @@ impl BenchTarget {
             }
         }
     }
+}
+
+// This dylib path logic is adapted from Cargo.
+pub fn dylib_path_envvar() -> &'static str {
+    if cfg!(windows) {
+        "PATH"
+    } else if cfg!(target_os = "macos") {
+        "DYLD_FALLBACK_LIBRARY_PATH"
+    } else {
+        "LD_LIBRARY_PATH"
+    }
+}
+
+pub fn dylib_path() -> Vec<PathBuf> {
+    match std::env::var_os(dylib_path_envvar()) {
+        Some(var) => std::env::split_paths(&var).collect(),
+        None => Vec::new(),
+    }
+}
+
+fn dylib_search_path(linked_paths: &[PathBuf]) -> Result<OsString> {
+    let mut dylib_path = dylib_path();
+    let dylib_path_is_empty = dylib_path.is_empty();
+    dylib_path.extend(linked_paths.iter().cloned());
+    if cfg!(target_os = "macos") && dylib_path_is_empty {
+        if let Some(home) = std::env::var_os("HOME") {
+            dylib_path.push(PathBuf::from(home).join("lib"));
+        }
+        dylib_path.push(PathBuf::from("/usr/local/lib"));
+        dylib_path.push(PathBuf::from("/usr/lib"));
+    }
+    let search_path = std::env::join_paths(&dylib_path)
+        .with_context(|| format!("Failed to join dynamic lib search paths together. Does {} have an unterminated quote character? Paths:\n{:?}", dylib_path_envvar(), &dylib_path));
+    search_path
 }
