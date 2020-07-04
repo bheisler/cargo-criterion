@@ -2,7 +2,10 @@ sudo: false
 
 language: rust
 
-cache: cargo
+cache: 
+  cargo: true
+  directories:
+    - integration_tests/target
 
 rust:
   - stable
@@ -36,6 +39,9 @@ matrix:
       env: GNUPLOT=no
       rust: nightly
     - os: linux
+      env: GNUPLOT=no
+      rust: nightly
+    - os: linux
       env: GNUPLOT=yes
       rust: nightly
       addons:
@@ -57,7 +63,17 @@ before_cache:
 - rm -rf ./target/debug/deps/*cargo*criterion*
 - rm -rf ./target/debug/.fingerprint/*cargo*criterion*
 - rm -f  ./target/.rustc_info.json
-- rm -rf ./target/criterion
+- find ./integration_tests/target/debug -maxdepth 1 -type f -delete
+- find ./integration_tests/target/release -maxdepth 1 -type f -delete
+- rm -rf ./integration_tests/target/debug/deps/test_benchmark*
+- rm -rf ./integration_tests/target/debug/deps/integration_test*
+- rm -rf ./integration_tests/target/debug/.fingerprint/test_benchmark*
+- rm -rf ./integration_tests/target/debug/.fingerprint/integration_test*
+- rm -rf ./integration_tests/target/release/deps/test_benchmark*
+- rm -rf ./integration_tests/target/release/deps/integration_test*
+- rm -rf ./integration_tests/target/release/.fingerprint/test_benchmark*
+- rm -rf ./integration_tests/target/release/.fingerprint/integration_test*
+- rm -f  ./integration_tests/target/.rustc_info.json
 
 notifications:
   email:

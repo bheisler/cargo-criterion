@@ -49,7 +49,6 @@ gnuplot_backend = ["criterion-plot"]
 # Enable the plotters plotting backend.
 plotters_backend = ["plotters"]
 
-
 [dev-dependencies]
 approx = "0.3"
 quickcheck = { version = "0.9", default-features = false }

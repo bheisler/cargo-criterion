@@ -1,0 +1,28 @@
+[package]
+name = "integration_tests"
+version = "0.1.0"
+authors = ["Brook Heisler <redattack34@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+
+# These are benchmarks used to test cargo-criterion itself.
+[[bench]]
+name = "test_benchmark_external_c_lib"
+harness = false
+
+[[bench]]
+name = "test_benchmarks"
+harness = false
+
+[[bench]]
+name = "test_benchmark_non_criterion"
+harness = false
+
+[dev-dependencies]
+tch = "0.1.7"
+bencher = "0.1.5"
+criterion = "0.3.3"
+tempfile = "3.1"
+walkdir = "2"
+bstr = "0.2"
