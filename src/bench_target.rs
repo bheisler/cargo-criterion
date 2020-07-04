@@ -304,7 +304,6 @@ fn dylib_search_path(linked_paths: &[PathBuf]) -> Result<OsString> {
         dylib_path.push(PathBuf::from("/usr/local/lib"));
         dylib_path.push(PathBuf::from("/usr/lib"));
     }
-    let search_path = std::env::join_paths(&dylib_path)
-        .with_context(|| format!("Failed to join dynamic lib search paths together. Does {} have an unterminated quote character? Paths:\n{:?}", dylib_path_envvar(), &dylib_path));
-    search_path
+    std::env::join_paths(&dylib_path)
+        .with_context(|| format!("Failed to join dynamic lib search paths together. Does {} have an unterminated quote character? Paths:\n{:?}", dylib_path_envvar(), &dylib_path))
 }
