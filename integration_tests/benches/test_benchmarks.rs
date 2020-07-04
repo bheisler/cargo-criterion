@@ -34,7 +34,7 @@ fn sampling_mode_tests(c: &mut Criterion) {
     group.finish();
 }
 
-const SIZE: usize = 1024 * 1024;
+const SIZE: usize = 1024;
 
 fn throughput_tests(c: &mut Criterion) {
     let mut group = c.benchmark_group("throughput");

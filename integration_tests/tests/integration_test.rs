@@ -18,6 +18,7 @@ fn execute(args: &[&str], homedir: &Path) -> (Output, Output) {
 
     println!("Running cargo-criterion...");
     let first_output = Command::new(cargo_criterion_path)
+        .arg("--debug") // Build benchmarks in test mode to avoid expensive optimized compile.
         .args(args)
         .env("CRITERION_HOME", homedir)
         .output()
@@ -35,6 +36,7 @@ fn execute(args: &[&str], homedir: &Path) -> (Output, Output) {
     // Run twice to get a history
     println!("Running cargo-criterion a second time...");
     let second_output = Command::new(cargo_criterion_path)
+        .arg("--debug") // Build benchmarks in test mode to avoid expensive optimized compile.
         .args(args)
         .env("CRITERION_HOME", homedir)
         .output()
