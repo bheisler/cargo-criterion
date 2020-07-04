@@ -28,7 +28,7 @@ macro_rules! path {
         $to.push($x);
     };
     ($x:expr, $($y:expr),+) => {{
-        let mut path_buffer = PathBuf::new();
+        let mut path_buffer = std::path::PathBuf::new();
         path!(PUSH path_buffer, $x, $($y),+);
         path_buffer
     }};

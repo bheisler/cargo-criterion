@@ -395,6 +395,7 @@ dependencies = [
  "bencher",
  "bstr",
  "criterion",
+ "serde_json",
  "tch",
  "tempfile",
  "walkdir",

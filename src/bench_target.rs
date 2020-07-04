@@ -32,6 +32,7 @@ impl BenchTarget {
         library_paths: &[PathBuf],
         report: &dyn Report,
         model: &mut Model,
+        redirect_stdout: bool,
     ) -> Result<()> {
         let listener = TcpListener::bind("localhost:0")
             .context("Unable to open socket to connect to Criterion.rs")?;
@@ -52,14 +53,26 @@ impl BenchTarget {
             .env("CRITERION_HOME", criterion_home)
             .env("CARGO_CRITERION_PORT", &port.to_string())
             .stdin(Stdio::null())
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit());
+            .stdout(if redirect_stdout {
+                // If we're printing machine-readable output to stdout, output from the target might
+                // interfere with out messages, so intercept it and reprint it to stderr.
+                Stdio::piped()
+            } else {
+                // If not, we might as well let the target see the true stdout.
+                Stdio::inherit()
+            })
+            .stderr(Stdio::inherit());
 
         debug!("Running '{:?}'", command);
 
         let mut child = command
             .spawn()
             .with_context(|| format!("Unable to launch bench target {}", self.name))?;
+
+        if redirect_stdout {
+            let mut stdout = child.stdout.take().unwrap();
+            std::thread::spawn(move || std::io::copy(&mut stdout, &mut std::io::stderr()));
+        }
 
         loop {
             match listener.accept() {

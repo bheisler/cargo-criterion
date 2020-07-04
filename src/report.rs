@@ -13,7 +13,7 @@ use std::cell::Cell;
 use std::cmp;
 use std::collections::HashSet;
 use std::fmt;
-use std::io::stdout;
+use std::io::stderr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -387,11 +387,11 @@ impl CliReport {
 
     fn text_overwrite(&self) {
         if self.enable_text_overwrite {
-            print!("\r");
+            eprint!("\r");
             for _ in 0..self.last_line_len.get() {
-                print!(" ");
+                eprint!(" ");
             }
-            print!("\r");
+            eprint!("\r");
         }
     }
 
@@ -400,10 +400,10 @@ impl CliReport {
     fn print_overwritable(&self, s: String) {
         if self.enable_text_overwrite {
             self.last_line_len.set(s.len());
-            print!("{}", s);
-            stdout().flush().unwrap();
+            eprint!("{}", s);
+            stderr().flush().unwrap();
         } else {
-            println!("{}", s);
+            eprintln!("{}", s);
         }
     }
 
@@ -458,7 +458,7 @@ impl CliReport {
 
         let percent = |n: usize| 100. * n as f64 / sample_size as f64;
 
-        println!(
+        eprintln!(
             "{}",
             self.yellow(format!(
                 "Found {} outliers among {} measurements ({:.2}%)",
@@ -470,7 +470,7 @@ impl CliReport {
 
         let print = |n, label| {
             if n != 0 {
-                println!("  {} ({:.2}%) {}", n, percent(n), label);
+                eprintln!("  {} ({:.2}%) {}", n, percent(n), label);
             }
         };
 
@@ -538,12 +538,12 @@ impl Report for CliReport {
             let mut id = id.as_title().to_owned();
 
             if id.len() > 23 {
-                println!("{}", self.green(id.clone()));
+                eprintln!("{}", self.green(id.clone()));
                 id.clear();
             }
             let id_len = id.len();
 
-            println!(
+            eprintln!(
                 "{}{}time:   [{} {} {}]",
                 self.green(id),
                 " ".repeat(24 - id_len),
@@ -558,7 +558,7 @@ impl Report for CliReport {
         }
 
         if let Some(ref throughput) = meas.throughput {
-            println!(
+            eprintln!(
                 "{}thrpt:  [{} {} {}]",
                 " ".repeat(24),
                 self.faint(formatter.format_throughput(
@@ -612,9 +612,9 @@ impl Report for CliReport {
                 }
 
                 if meas.throughput.is_some() {
-                    println!("{}change:", " ".repeat(17));
+                    eprintln!("{}change:", " ".repeat(17));
 
-                    println!(
+                    eprintln!(
                         "{}time:   [{} {} {}] (p = {:.2} {} {:.2})",
                         " ".repeat(24),
                         self.faint(format::change(
@@ -630,7 +630,7 @@ impl Report for CliReport {
                         if different_mean { "<" } else { ">" },
                         comp.significance_threshold
                     );
-                    println!(
+                    eprintln!(
                         "{}thrpt:  [{} {} {}]",
                         " ".repeat(24),
                         self.faint(format::change(
@@ -644,7 +644,7 @@ impl Report for CliReport {
                         )),
                     );
                 } else {
-                    println!(
+                    eprintln!(
                         "{}change: [{} {} {}] (p = {:.2} {} {:.2})",
                         " ".repeat(24),
                         self.faint(format::change(
@@ -662,7 +662,7 @@ impl Report for CliReport {
                     );
                 }
 
-                println!("{}{}", " ".repeat(24), explanation_str);
+                eprintln!("{}{}", " ".repeat(24), explanation_str);
             }
         }
 
@@ -679,7 +679,7 @@ impl Report for CliReport {
 
             let data = &meas.data;
             if let Some(slope_estimate) = meas.absolute_estimates.slope.as_ref() {
-                println!(
+                eprintln!(
                     "{:<7}{} {:<15}[{:0.7} {:0.7}]",
                     "slope",
                     format_short_estimate(slope_estimate),
@@ -688,14 +688,14 @@ impl Report for CliReport {
                     Slope(slope_estimate.confidence_interval.upper_bound).r_squared(data),
                 );
             }
-            println!(
+            eprintln!(
                 "{:<7}{} {:<15}{}",
                 "mean",
                 format_short_estimate(&meas.absolute_estimates.mean),
                 "std. dev.",
                 format_short_estimate(&meas.absolute_estimates.std_dev),
             );
-            println!(
+            eprintln!(
                 "{:<7}{} {:<15}{}",
                 "median",
                 format_short_estimate(&meas.absolute_estimates.median),
@@ -706,7 +706,7 @@ impl Report for CliReport {
     }
 
     fn group_separator(&self) {
-        println!();
+        eprintln!();
     }
 }
 
@@ -720,7 +720,7 @@ impl Report for BencherReport {
         _estimate_ns: f64,
         _iter_count: u64,
     ) {
-        print!("test {} ... ", id);
+        eprint!("test {} ... ", id);
     }
 
     fn measurement_complete(
@@ -736,7 +736,7 @@ impl Report for BencherReport {
         ];
         let unit = formatter.scale_for_machines(&mut values);
 
-        println!(
+        eprintln!(
             "bench: {:>11} {}/iter (+/- {})",
             format::integer(values[0]),
             unit,
@@ -745,17 +745,17 @@ impl Report for BencherReport {
     }
 
     fn group_separator(&self) {
-        println!();
+        eprintln!();
     }
 }
 
-enum ComparisonResult {
+pub enum ComparisonResult {
     Improved,
     Regressed,
     NonSignificant,
 }
 
-fn compare_to_threshold(estimate: &Estimate, noise: f64) -> ComparisonResult {
+pub fn compare_to_threshold(estimate: &Estimate, noise: f64) -> ComparisonResult {
     let ci = &estimate.confidence_interval;
     let lb = ci.lower_bound;
     let ub = ci.upper_bound;

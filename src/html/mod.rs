@@ -1,4 +1,7 @@
-use crate::report::{make_filename_safe, BenchmarkId, MeasurementData, Report, ReportContext};
+use crate::report::{
+    compare_to_threshold, make_filename_safe, BenchmarkId, ComparisonResult, MeasurementData,
+    Report, ReportContext,
+};
 use crate::stats::bivariate::regression::Slope;
 
 use crate::estimate::Estimate;
@@ -727,25 +730,5 @@ impl Html {
             .render("summary_report", &context)
             .expect("Failed to render summary report template");
         try_else_return!(save_string(&text, &report_path,), || {});
-    }
-}
-
-enum ComparisonResult {
-    Improved,
-    Regressed,
-    NonSignificant,
-}
-
-fn compare_to_threshold(estimate: &Estimate, noise: f64) -> ComparisonResult {
-    let ci = &estimate.confidence_interval;
-    let lb = ci.lower_bound;
-    let ub = ci.upper_bound;
-
-    if lb < -noise && ub < -noise {
-        ComparisonResult::Improved
-    } else if lb > noise && ub > noise {
-        ComparisonResult::Regressed
-    } else {
-        ComparisonResult::NonSignificant
     }
 }

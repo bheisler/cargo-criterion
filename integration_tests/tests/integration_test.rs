@@ -264,6 +264,35 @@ impl AssertionState {
     fn assert_success(&self) {
         assert!(self.success, "Test failed");
     }
+
+    fn assert_benchmarks_in_json_messages(&mut self, output: &[u8]) {
+        let stream = serde_json::Deserializer::from_slice(output).into_iter::<serde_json::Value>();
+
+        let mut benchmark_ids_seen = HashSet::new();
+        for value in stream {
+            let value = value.unwrap();
+            let reason = value["reason"].as_str().unwrap();
+            if reason == "benchmark-complete" {
+                let benchmark_id = value["id"].as_str().unwrap();
+                benchmark_ids_seen.insert(benchmark_id.to_owned());
+            }
+        }
+
+        for benchmark in benchmark_names() {
+            // Only Criterion.rs benchmarks are expected.
+            if *benchmark == "bencher_test" {
+                continue;
+            }
+
+            if !benchmark_ids_seen.contains(*benchmark) {
+                self.success = false;
+                println!(
+                    "Expected to find benchmark-complete message for {}.",
+                    benchmark
+                );
+            }
+        }
+    }
 }
 
 #[test]
@@ -273,8 +302,8 @@ fn test_cargo_criterion_gnuplot() {
     let (first_output, second_output) = execute(&["--plotting-backend=gnuplot"], homedir.path());
 
     let mut state = AssertionState::default();
-    state.assert_benchmarks_present("first", &first_output.stdout);
-    state.assert_benchmarks_present("second", &second_output.stdout);
+    state.assert_benchmarks_present("first", &first_output.stderr);
+    state.assert_benchmarks_present("second", &second_output.stderr);
     state.assert_data_files_present(homedir.path());
     state.assert_individual_benchmark_report_files(homedir.path());
     state.assert_group_summary_files(homedir.path());
@@ -289,12 +318,24 @@ fn test_cargo_criterion_plotters() {
     let (first_output, second_output) = execute(&["--plotting-backend=plotters"], homedir.path());
 
     let mut state = AssertionState::default();
-    state.assert_benchmarks_present("first", &first_output.stdout);
-    state.assert_benchmarks_present("second", &second_output.stdout);
+    state.assert_benchmarks_present("first", &first_output.stderr);
+    state.assert_benchmarks_present("second", &second_output.stderr);
     state.assert_data_files_present(homedir.path());
     state.assert_individual_benchmark_report_files(homedir.path());
     state.assert_group_summary_files(homedir.path());
     state.assert_overall_summary_report(homedir.path());
     state.assert_no_unknown_files(homedir.path());
+    state.assert_success();
+}
+
+#[test]
+fn test_json_message_format() {
+    let homedir = tempdir().unwrap();
+    let (first_output, second_output) = execute(&["--message-format=json"], homedir.path());
+
+    let mut state = AssertionState::default();
+    state.assert_benchmarks_present("first", &first_output.stderr);
+    state.assert_benchmarks_present("second", &second_output.stderr);
+    state.assert_benchmarks_in_json_messages(&second_output.stdout);
     state.assert_success();
 }

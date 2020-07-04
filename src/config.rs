@@ -81,6 +81,19 @@ impl PlottingBackend {
     }
 }
 
+#[derive(Debug)]
+pub enum MessageFormat {
+    Json,
+}
+impl MessageFormat {
+    fn from_str(s: &str) -> MessageFormat {
+        match s {
+            "json" => MessageFormat::Json,
+            other => panic!("Unknown message format: {}", other),
+        }
+    }
+}
+
 /// Struct to hold the various configuration settings for cargo-criterion itself.
 #[derive(Debug)]
 pub struct SelfConfig {
@@ -98,6 +111,8 @@ pub struct SelfConfig {
     pub plotting_backend: PlottingBackend,
     /// Should we compile the benchmarks in debug mode (true) or release mode (false, default)
     pub debug_build: bool,
+    /// Should we print machine-readable output, and if so, in what format?
+    pub message_format: Option<MessageFormat>,
 }
 
 /// Overall struct that represents all of the configuration data for this run.
@@ -321,6 +336,20 @@ bencher: Emulates the output format of the bencher crate and nightly-only libtes
                 .takes_value(true)
                 .possible_values(&["gnuplot", "plotters", "disabled"])
                 .help("Set the plotting backend. By default, cargo-criterion will use the gnuplot backend if gnuplot is available, or the plotters backend if it isn't. If set to 'disabled', plot generation will be disabled."))
+            .arg(Arg::with_name("message-format")
+                .long("message-format")
+                .takes_value(true)
+                .possible_values(&["json"])
+                .help("If set, machine-readable output of the requested format will be printed to stdout.")
+                .long_help(
+"Change the machine-readable output format. Possible values are [json].
+
+Machine-readable information on the benchmarks will be printed in the requested format to stdout.
+All of cargo-criterion's other output will be printed to stderr.
+
+See the documentation for details on the data printed by each format.
+")
+        )
         .arg(
             Arg::with_name("verbose")
                 .long("--verbose")
@@ -539,6 +568,7 @@ Compilation can be customized with the `bench` profile in the manifest.
             .map(PlottingBackend::from_str)
             .unwrap_or(PlottingBackend::Auto),
         debug_build: matches.is_present("debug"),
+        message_format: (matches.value_of("message-format")).map(MessageFormat::from_str),
     };
 
     // These are the extra arguments to be passed to the benchmark targets.
