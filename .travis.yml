@@ -50,6 +50,14 @@ matrix:
             - gnuplot
     - os: osx
       env: GNUPLOT=yes
+    - os: linux
+      env: GNUPLOT=yes INTEGRATION_TESTS=yes
+      addons:
+        apt:
+          packages:
+            - gnuplot
+    - os: linux
+      env: GNUPLOT=no INTEGRATION_TESTS=yes
 
 
 install:
