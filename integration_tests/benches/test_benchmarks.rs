@@ -45,17 +45,21 @@ fn throughput_tests(c: &mut Criterion) {
     });
 
     group.throughput(Throughput::Elements(SIZE as u64));
-    group.bench_function("Bytes", |bencher| {
+    group.bench_function("Elem", |bencher| {
         bencher.iter(|| (0..SIZE).map(|i| i as u64).collect::<Vec<_>>())
     });
 
     group.finish();
 }
 
-criterion_group!(
-    benches,
-    special_characters,
-    sampling_mode_tests,
-    throughput_tests
-);
+// These benchmarks are used for testing cargo-criterion, so to make the tests faster we configure
+// them to run quickly. This is not recommended for real benchmarks.
+criterion_group! {
+    name = benches;
+    config = Criterion::default()
+        .warm_up_time(Duration::from_millis(250))
+        .measurement_time(Duration::from_millis(500))
+        .nresamples(2000);
+    targets = special_characters, sampling_mode_tests, throughput_tests
+}
 criterion_main!(benches);

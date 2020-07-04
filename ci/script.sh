@@ -14,6 +14,15 @@ elif [ "$DOCS" = "yes" ]; then
     travis-cargo doc-upload || true
 elif [ "$RUSTFMT" = "yes" ]; then
     cargo fmt --all -- --check
+elif [ "$INTEGRATION_TESTS" = "yes" ]; then
+    cargo build
+    cd integration_tests
+    if [ "$GNUPLOT" = "yes" ]; then
+        cargo test --ignored
+    else
+        cargo test
+    fi
+
 else
     export RUSTFLAGS="-D warnings"
 
