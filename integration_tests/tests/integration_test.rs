@@ -64,6 +64,12 @@ fn benchmark_names() -> &'static [&'static str] {
         "sampling_mode/Flat",
         "throughput/Bytes",
         "throughput/Elem",
+        "log_scale/sleep (micros)/1",
+        "log_scale/sleep (micros)/100",
+        "log_scale/sleep (micros)/10000",
+        "linear_scale/sleep (millis)/1",
+        "linear_scale/sleep (millis)/2",
+        "linear_scale/sleep (millis)/3",
     ]
 }
 
@@ -77,11 +83,26 @@ fn file_safe_benchmark_names() -> &'static [&'static str] {
         "sampling_mode/Flat",
         "throughput/Bytes",
         "throughput/Elem",
+        "log_scale/sleep (micros)/1",
+        "log_scale/sleep (micros)/100",
+        "log_scale/sleep (micros)/10000",
+        "linear_scale/sleep (millis)/1",
+        "linear_scale/sleep (millis)/2",
+        "linear_scale/sleep (millis)/3",
     ]
 }
 
 fn file_safe_benchmark_group_names() -> &'static [&'static str] {
-    &["norm", "__group__", "sampling_mode", "throughput"]
+    &[
+        "norm",
+        "__group__",
+        "sampling_mode",
+        "throughput",
+        "linear_scale",
+        "linear_scale/sleep (millis)",
+        "log_scale",
+        "log_scale/sleep (micros)",
+    ]
 }
 
 // Note that we run cargo-criterion just twice for each benchmark and make many assertions about
@@ -252,6 +273,7 @@ impl AssertionState {
 
             self.assert_file_exists(&summary_dir, "index.html");
             self.assert_file_exists(&summary_dir, "violin.svg");
+            self.does_exist(summary_dir.join("lines.svg"));
         }
     }
 
