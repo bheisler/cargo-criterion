@@ -57,7 +57,6 @@ fn execute(args: &[&str], homedir: &Path) -> (Output, Output) {
 fn benchmark_names() -> &'static [&'static str] {
     &[
         "norm",
-        "bencher_test",
         "\"*group/\"/\"*benchmark/\" '",
         "sampling_mode/Auto (short)",
         "sampling_mode/Auto (long)",
@@ -71,7 +70,6 @@ fn benchmark_names() -> &'static [&'static str] {
 fn file_safe_benchmark_names() -> &'static [&'static str] {
     &[
         "norm",
-        //"bencher_test", // This one isn't a criterion.rs test, so we don't include it in the output files.
         "__group__/__benchmark__ '",
         "sampling_mode/Auto (short)",
         "sampling_mode/Auto (long)",
@@ -102,9 +100,19 @@ impl Default for AssertionState {
     }
 }
 impl AssertionState {
-    fn assert_benchmarks_present(&mut self, first_second: &str, output: &[u8]) {
+    fn assert_benchmarks_present(&mut self, first_second: &str, stdout: &[u8], stderr: &[u8]) {
+        // As a non-Criterion.rs benchmark, this one could appear in either stdout or stderr,
+        // depending on if machine-readable output is enabled.
+        if !(stdout.contains_str("bencher_test") || stderr.contains_str("bencher_test")) {
+            self.success = false;
+            println!(
+                "Expected benchmark bencher_test to appear in {} output, but it was not found.",
+                first_second
+            );
+        }
+
         for benchmark in benchmark_names() {
-            if !output.contains_str(benchmark) {
+            if !stderr.contains_str(benchmark) {
                 self.success = false;
                 println!(
                     "Expected benchmark {} to appear in {} output, but it was not found.",
@@ -302,8 +310,8 @@ fn test_cargo_criterion_gnuplot() {
     let (first_output, second_output) = execute(&["--plotting-backend=gnuplot"], homedir.path());
 
     let mut state = AssertionState::default();
-    state.assert_benchmarks_present("first", &first_output.stderr);
-    state.assert_benchmarks_present("second", &second_output.stderr);
+    state.assert_benchmarks_present("first", &first_output.stdout, &first_output.stderr);
+    state.assert_benchmarks_present("second", &second_output.stdout, &second_output.stderr);
     state.assert_data_files_present(homedir.path());
     state.assert_individual_benchmark_report_files(homedir.path());
     state.assert_group_summary_files(homedir.path());
@@ -318,8 +326,8 @@ fn test_cargo_criterion_plotters() {
     let (first_output, second_output) = execute(&["--plotting-backend=plotters"], homedir.path());
 
     let mut state = AssertionState::default();
-    state.assert_benchmarks_present("first", &first_output.stderr);
-    state.assert_benchmarks_present("second", &second_output.stderr);
+    state.assert_benchmarks_present("first", &first_output.stdout, &first_output.stderr);
+    state.assert_benchmarks_present("second", &second_output.stdout, &second_output.stderr);
     state.assert_data_files_present(homedir.path());
     state.assert_individual_benchmark_report_files(homedir.path());
     state.assert_group_summary_files(homedir.path());
@@ -334,8 +342,8 @@ fn test_json_message_format() {
     let (first_output, second_output) = execute(&["--message-format=json"], homedir.path());
 
     let mut state = AssertionState::default();
-    state.assert_benchmarks_present("first", &first_output.stderr);
-    state.assert_benchmarks_present("second", &second_output.stderr);
+    state.assert_benchmarks_present("first", &[], &first_output.stderr);
+    state.assert_benchmarks_present("second", &[], &second_output.stderr);
     state.assert_benchmarks_in_json_messages(&second_output.stdout);
     state.assert_success();
 }
