@@ -1,6 +1,7 @@
 use super::*;
 use crate::connection::AxisScale;
 use crate::model::Benchmark;
+use crate::plot::KDE_POINTS;
 use linked_hash_map::LinkedHashMap;
 use plotters::coord::{AsRangedCoord, Shift};
 use std::cmp::Ordering;
@@ -32,7 +33,7 @@ pub fn line_comparison(
         plotters::data::fitting_range(series_data.iter().map(|(_, xs, _)| xs.iter()).flatten());
     let y_range =
         plotters::data::fitting_range(series_data.iter().map(|(_, _, ys)| ys.iter()).flatten());
-    let root_area = SVGBackend::new(&path, SIZE)
+    let root_area = SVGBackend::new(&path, SIZE.into())
         .into_drawing_area()
         .titled(&format!("{}: Comparison", title), (DEFAULT_FONT, 20))
         .unwrap();

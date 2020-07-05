@@ -1,13 +1,9 @@
 use super::*;
+use crate::plot::KDE_POINTS;
 use crate::report::ComparisonData;
 use std::path::Path;
 
-pub(crate) fn t_test(
-    path: &Path,
-    title: &str,
-    comparison: &ComparisonData,
-    size: Option<(u32, u32)>,
-) {
+pub(crate) fn t_test(path: &Path, title: &str, comparison: &ComparisonData, size: Option<Size>) {
     let t = comparison.t_value;
     let (xs, ys) = kde::sweep(&comparison.t_distribution, KDE_POINTS, None);
 
@@ -16,7 +12,7 @@ pub(crate) fn t_test(
     y_range.start = 0.0;
     y_range.end *= 1.1;
 
-    let root_area = SVGBackend::new(&path, size.unwrap_or(SIZE)).into_drawing_area();
+    let root_area = SVGBackend::new(&path, size.unwrap_or(SIZE).into()).into_drawing_area();
 
     let mut chart = ChartBuilder::on(&root_area)
         .margin((5).percent())

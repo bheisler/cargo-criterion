@@ -5,154 +5,13 @@ use crate::stats::univariate::Sample;
 use crate::stats::Distribution;
 use criterion_plot::prelude::*;
 
-use super::*;
+use super::{debug_script, gnuplot_escape, DARK_BLUE, DARK_RED, DEFAULT_FONT, LINEWIDTH, SIZE};
 use crate::estimate::Estimate;
 use crate::estimate::Statistic;
 use crate::kde;
+use crate::plot::Size;
+use crate::plot::KDE_POINTS;
 use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
-use crate::value_formatter::ValueFormatter;
-
-fn abs_distribution(
-    id: &BenchmarkId,
-    context: &ReportContext,
-    formatter: &dyn ValueFormatter,
-    statistic: Statistic,
-    distribution: &Distribution<f64>,
-    estimate: &Estimate,
-    size: Option<Size>,
-) -> Child {
-    let ci = &estimate.confidence_interval;
-    let typical = ci.upper_bound;
-    let mut ci_values = [ci.lower_bound, ci.upper_bound, estimate.point_estimate];
-    let unit = formatter.scale_values(typical, &mut ci_values);
-    let (lb, ub, point) = (ci_values[0], ci_values[1], ci_values[2]);
-
-    let start = lb - (ub - lb) / 9.;
-    let end = ub + (ub - lb) / 9.;
-    let mut scaled_xs: Vec<f64> = distribution.iter().cloned().collect();
-    let _ = formatter.scale_values(typical, &mut scaled_xs);
-    let scaled_xs_sample = Sample::new(&scaled_xs);
-    let (kde_xs, ys) = kde::sweep(scaled_xs_sample, KDE_POINTS, Some((start, end)));
-
-    // interpolate between two points of the KDE sweep to find the Y position at the point estimate.
-    let n_point = kde_xs
-        .iter()
-        .position(|&x| x >= point)
-        .unwrap_or(kde_xs.len() - 1)
-        .max(1); // Must be at least the second element or this will panic
-    let slope = (ys[n_point] - ys[n_point - 1]) / (kde_xs[n_point] - kde_xs[n_point - 1]);
-    let y_point = ys[n_point - 1] + (slope * (point - kde_xs[n_point - 1]));
-
-    let zero = iter::repeat(0);
-
-    let start = kde_xs
-        .iter()
-        .enumerate()
-        .find(|&(_, &x)| x >= lb)
-        .unwrap()
-        .0;
-    let end = kde_xs
-        .iter()
-        .enumerate()
-        .rev()
-        .find(|&(_, &x)| x <= ub)
-        .unwrap()
-        .0;
-    let len = end - start;
-
-    let kde_xs_sample = Sample::new(&kde_xs);
-
-    let mut figure = Figure::new();
-    figure
-        .set(Font(DEFAULT_FONT))
-        .set(size.unwrap_or(SIZE))
-        .set(Title(format!(
-            "{}: {}",
-            gnuplot_escape(id.as_title()),
-            statistic
-        )))
-        .configure(Axis::BottomX, |a| {
-            a.set(Label(format!("Average time ({})", unit)))
-                .set(Range::Limits(kde_xs_sample.min(), kde_xs_sample.max()))
-        })
-        .configure(Axis::LeftY, |a| a.set(Label("Density (a.u.)")))
-        .configure(Key, |k| {
-            k.set(Justification::Left)
-                .set(Order::SampleText)
-                .set(Position::Outside(Vertical::Top, Horizontal::Right))
-        })
-        .plot(
-            Lines {
-                x: &*kde_xs,
-                y: &*ys,
-            },
-            |c| {
-                c.set(DARK_BLUE)
-                    .set(LINEWIDTH)
-                    .set(Label("Bootstrap distribution"))
-                    .set(LineType::Solid)
-            },
-        )
-        .plot(
-            FilledCurve {
-                x: kde_xs.iter().skip(start).take(len),
-                y1: ys.iter().skip(start),
-                y2: zero,
-            },
-            |c| {
-                c.set(DARK_BLUE)
-                    .set(Label("Confidence interval"))
-                    .set(Opacity(0.25))
-            },
-        )
-        .plot(
-            Lines {
-                x: &[point, point],
-                y: &[0., y_point],
-            },
-            |c| {
-                c.set(DARK_BLUE)
-                    .set(LINEWIDTH)
-                    .set(Label("Point estimate"))
-                    .set(LineType::Dash)
-            },
-        );
-
-    let path = context.report_path(id, &format!("{}.svg", statistic));
-    debug_script(&path, &figure);
-    figure.set(Output(path)).draw().unwrap()
-}
-
-pub(crate) fn abs_distributions(
-    id: &BenchmarkId,
-    context: &ReportContext,
-    formatter: &dyn ValueFormatter,
-    measurements: &MeasurementData<'_>,
-    size: Option<Size>,
-) -> Vec<Child> {
-    crate::plot::REPORT_STATS
-        .iter()
-        .filter_map(|stat| {
-            measurements.distributions.get(*stat).and_then(|dist| {
-                measurements
-                    .absolute_estimates
-                    .get(*stat)
-                    .map(|est| (*stat, dist, est))
-            })
-        })
-        .map(|(statistic, distribution, estimate)| {
-            abs_distribution(
-                id,
-                context,
-                formatter,
-                statistic,
-                distribution,
-                estimate,
-                size,
-            )
-        })
-        .collect::<Vec<_>>()
-}
 
 fn rel_distribution(
     id: &BenchmarkId,
@@ -220,7 +79,7 @@ fn rel_distribution(
 
     figure
         .set(Font(DEFAULT_FONT))
-        .set(size.unwrap_or(SIZE))
+        .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
         .configure(Axis::LeftY, |a| a.set(Label("Density (a.u.)")))
         .configure(Key, |k| {
             k.set(Justification::Left)

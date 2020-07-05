@@ -1,10 +1,7 @@
+use criterion_plot::prelude::*;
 use std::iter;
 use std::path::PathBuf;
 use std::process::Child;
-
-use crate::stats::univariate::Sample;
-use criterion_plot::prelude::*;
-
 mod distributions;
 mod iteration_times;
 mod pdf;
@@ -16,22 +13,25 @@ use self::pdf::*;
 use self::regression::*;
 use self::summary::*;
 use self::t_test::*;
-use iteration_times::*;
-
-use crate::report::{BenchmarkId, ValueType};
-use crate::stats::bivariate::Data;
-use crate::value_formatter::ValueFormatter;
-
-use super::{PlotContext, PlotData, Plotter};
+use super::{
+    FilledCurve as FilledArea, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend,
+    ReportContext,
+};
+use crate::estimate::Statistic;
 use crate::format;
 use crate::model::Benchmark;
+use crate::plot::Size;
+use crate::report::{BenchmarkId, ValueType};
+use crate::stats::bivariate::Data;
+use crate::stats::univariate::Sample;
+use crate::value_formatter::ValueFormatter;
+use iteration_times::*;
 
 fn gnuplot_escape(string: &str) -> String {
     string.replace("_", "\\_").replace("'", "''")
 }
 
 static DEFAULT_FONT: &str = "Helvetica";
-static KDE_POINTS: usize = 500;
 static SIZE: Size = Size(1280, 720);
 
 const LINEWIDTH: LineWidth = LineWidth(2.);
@@ -67,8 +67,15 @@ impl<T> Append<T> for Vec<T> {
     }
 }
 
+impl From<Size> for criterion_plot::Size {
+    fn from(other: Size) -> Self {
+        let Size(width, height) = other;
+        Self(width, height)
+    }
+}
+
 #[derive(Default)]
-pub(crate) struct Gnuplot {
+pub struct Gnuplot {
     process_list: Vec<Child>,
 }
 impl Gnuplot {
@@ -81,7 +88,6 @@ impl Gnuplot {
 
 impl Plotter for Gnuplot {
     fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let size = ctx.size.map(|(w, h)| Size(w, h));
         self.process_list.push(if ctx.is_thumbnail {
             if let Some(cmp) = data.comparison {
                 pdf_comparison_small(
@@ -90,10 +96,16 @@ impl Plotter for Gnuplot {
                     data.formatter,
                     data.measurements,
                     cmp,
-                    size,
+                    ctx.size,
                 )
             } else {
-                pdf_small(ctx.id, ctx.context, data.formatter, data.measurements, size)
+                pdf_small(
+                    ctx.id,
+                    ctx.context,
+                    data.formatter,
+                    data.measurements,
+                    ctx.size,
+                )
             }
         } else if let Some(cmp) = data.comparison {
             pdf_comparison(
@@ -102,15 +114,20 @@ impl Plotter for Gnuplot {
                 data.formatter,
                 data.measurements,
                 cmp,
-                size,
+                ctx.size,
             )
         } else {
-            pdf(ctx.id, ctx.context, data.formatter, data.measurements, size)
+            pdf(
+                ctx.id,
+                ctx.context,
+                data.formatter,
+                data.measurements,
+                ctx.size,
+            )
         });
     }
 
     fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let size = ctx.size.map(|(w, h)| Size(w, h));
         self.process_list.push(if ctx.is_thumbnail {
             if let Some(cmp) = data.comparison {
                 iteration_times_comparison_small(
@@ -119,10 +136,16 @@ impl Plotter for Gnuplot {
                     data.formatter,
                     data.measurements,
                     cmp,
-                    size,
+                    ctx.size,
                 )
             } else {
-                iteration_times_small(ctx.id, ctx.context, data.formatter, data.measurements, size)
+                iteration_times_small(
+                    ctx.id,
+                    ctx.context,
+                    data.formatter,
+                    data.measurements,
+                    ctx.size,
+                )
             }
         } else if let Some(cmp) = data.comparison {
             iteration_times_comparison(
@@ -131,15 +154,20 @@ impl Plotter for Gnuplot {
                 data.formatter,
                 data.measurements,
                 cmp,
-                size,
+                ctx.size,
             )
         } else {
-            iteration_times(ctx.id, ctx.context, data.formatter, data.measurements, size)
+            iteration_times(
+                ctx.id,
+                ctx.context,
+                data.formatter,
+                data.measurements,
+                ctx.size,
+            )
         });
     }
 
     fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let size = ctx.size.map(|(w, h)| Size(w, h));
         self.process_list.push(if ctx.is_thumbnail {
             if let Some(cmp) = data.comparison {
                 let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
@@ -150,10 +178,16 @@ impl Plotter for Gnuplot {
                     data.measurements,
                     cmp,
                     &base_data,
-                    size,
+                    ctx.size,
                 )
             } else {
-                regression_small(ctx.id, ctx.context, data.formatter, data.measurements, size)
+                regression_small(
+                    ctx.id,
+                    ctx.context,
+                    data.formatter,
+                    data.measurements,
+                    ctx.size,
+                )
             }
         } else if let Some(cmp) = data.comparison {
             let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
@@ -164,33 +198,31 @@ impl Plotter for Gnuplot {
                 data.measurements,
                 cmp,
                 &base_data,
-                size,
+                ctx.size,
             )
         } else {
-            regression(ctx.id, ctx.context, data.formatter, data.measurements, size)
+            regression(
+                ctx.id,
+                ctx.context,
+                data.formatter,
+                data.measurements,
+                ctx.size,
+            )
         });
     }
 
-    fn abs_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let size = ctx.size.map(|(w, h)| Size(w, h));
-        self.process_list.extend(abs_distributions(
-            ctx.id,
-            ctx.context,
-            data.formatter,
-            data.measurements,
-            size,
-        ));
+    fn abs_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
 
     fn rel_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let size = ctx.size.map(|(w, h)| Size(w, h));
         if let Some(cmp) = data.comparison {
             self.process_list.extend(rel_distributions(
                 ctx.id,
                 ctx.context,
                 data.measurements,
                 cmp,
-                size,
+                ctx.size,
             ));
         } else {
             error!("Comparison data is not provided for a relative distribution figure");
@@ -198,10 +230,14 @@ impl Plotter for Gnuplot {
     }
 
     fn t_test(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let size = ctx.size.map(|(w, h)| Size(w, h));
         if let Some(cmp) = data.comparison {
-            self.process_list
-                .push(t_test(ctx.id, ctx.context, data.measurements, cmp, size));
+            self.process_list.push(t_test(
+                ctx.id,
+                ctx.context,
+                data.measurements,
+                cmp,
+                ctx.size,
+            ));
         } else {
             error!("Comparison data is not provided for t_test plot");
         }
@@ -258,5 +294,86 @@ impl Plotter for Gnuplot {
             child_count,
             format::time(crate::DurationExt::to_nanos(elapsed) as f64)
         );
+    }
+}
+impl PlottingBackend for Gnuplot {
+    fn abs_distribution(
+        &mut self,
+        id: &BenchmarkId,
+        context: &ReportContext,
+        statistic: Statistic,
+        size: Option<Size>,
+
+        x_unit: &str,
+        distribution_curve: LineCurve,
+        bootstrap_area: FilledArea,
+        point_estimate: Line,
+    ) {
+        let xs_sample = Sample::new(distribution_curve.xs);
+
+        let mut figure = Figure::new();
+        figure
+            .set(Font(DEFAULT_FONT))
+            .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
+            .set(Title(format!(
+                "{}: {}",
+                gnuplot_escape(id.as_title()),
+                statistic
+            )))
+            .configure(Axis::BottomX, |a| {
+                a.set(Label(format!("Average time ({})", x_unit)))
+                    .set(Range::Limits(xs_sample.min(), xs_sample.max()))
+            })
+            .configure(Axis::LeftY, |a| a.set(Label("Density (a.u.)")))
+            .configure(Key, |k| {
+                k.set(Justification::Left)
+                    .set(Order::SampleText)
+                    .set(Position::Outside(Vertical::Top, Horizontal::Right))
+            })
+            .plot(
+                Lines {
+                    x: distribution_curve.xs,
+                    y: distribution_curve.ys,
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(LINEWIDTH)
+                        .set(Label("Bootstrap distribution"))
+                        .set(LineType::Solid)
+                },
+            )
+            .plot(
+                FilledCurve {
+                    x: bootstrap_area.xs,
+                    y1: bootstrap_area.ys_1,
+                    y2: bootstrap_area.ys_2,
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(Label("Confidence interval"))
+                        .set(Opacity(0.25))
+                },
+            )
+            .plot(
+                Lines {
+                    x: &[point_estimate.start.x, point_estimate.end.x],
+                    y: &[point_estimate.start.y, point_estimate.end.y],
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(LINEWIDTH)
+                        .set(Label("Point estimate"))
+                        .set(LineType::Dash)
+                },
+            );
+
+        let path = context.report_path(id, &format!("{}.svg", statistic));
+        debug_script(&path, &figure);
+        self.process_list
+            .push(figure.set(Output(path)).draw().unwrap());
+    }
+
+    fn wait(&mut self) {
+        Plotter::wait(self)
     }
 }

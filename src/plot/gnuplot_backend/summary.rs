@@ -1,8 +1,8 @@
-use super::{debug_script, gnuplot_escape};
-use super::{DARK_BLUE, DEFAULT_FONT, KDE_POINTS, LINEWIDTH, POINT_SIZE, SIZE};
+use super::{debug_script, gnuplot_escape, DARK_BLUE, DEFAULT_FONT, LINEWIDTH, POINT_SIZE, SIZE};
 use crate::connection::AxisScale;
 use crate::kde;
 use crate::model::Benchmark;
+use crate::plot::KDE_POINTS;
 use crate::report::{BenchmarkId, ValueType};
 use crate::stats::univariate::Sample;
 use crate::value_formatter::ValueFormatter;
@@ -52,7 +52,7 @@ pub fn line_comparison(
     };
 
     f.set(Font(DEFAULT_FONT))
-        .set(SIZE)
+        .set(criterion_plot::Size::from(SIZE))
         .configure(Key, |k| {
             k.set(Justification::Left)
                 .set(Order::SampleText)

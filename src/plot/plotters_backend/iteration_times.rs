@@ -7,7 +7,7 @@ pub(crate) fn iteration_times_figure(
     path: &Path,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
-    size: Option<(u32, u32)>,
+    size: Option<Size>,
 ) {
     let data = &measurements.avg_times;
     let max_avg_time = data.max();
@@ -16,7 +16,7 @@ pub(crate) fn iteration_times_figure(
     let scaled_y = Sample::new(&scaled_y);
 
     let size = size.unwrap_or(SIZE);
-    let root_area = SVGBackend::new(path, size).into_drawing_area();
+    let root_area = SVGBackend::new(path, size.into()).into_drawing_area();
 
     let mut cb = ChartBuilder::on(&root_area);
     if let Some(title) = title {
@@ -66,7 +66,7 @@ pub(crate) fn iteration_times_comparison_figure(
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
     comparison: &ComparisonData,
-    size: Option<(u32, u32)>,
+    size: Option<Size>,
 ) {
     let current_data = &measurements.avg_times;
     let base_data = &comparison.base_avg_times;
@@ -82,7 +82,7 @@ pub(crate) fn iteration_times_comparison_figure(
     let scaled_base_y = Sample::new(scaled_base_y);
 
     let size = size.unwrap_or(SIZE);
-    let root_area = SVGBackend::new(path, size).into_drawing_area();
+    let root_area = SVGBackend::new(path, size.into()).into_drawing_area();
 
     let mut cb = ChartBuilder::on(&root_area);
     if let Some(title) = title {

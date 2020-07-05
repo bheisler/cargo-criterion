@@ -1,5 +1,6 @@
 use super::*;
 use crate::kde;
+use crate::plot::KDE_POINTS;
 use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
 use crate::value_formatter::ValueFormatter;
 use std::process::Child;
@@ -45,7 +46,7 @@ pub(crate) fn pdf(
     let mut figure = Figure::new();
     figure
         .set(Font(DEFAULT_FONT))
-        .set(size.unwrap_or(SIZE))
+        .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
         .configure(Axis::BottomX, |a| {
             let xs_ = Sample::new(&xs);
             a.set(Label(format!("Average time ({})", unit)))
@@ -248,7 +249,7 @@ pub(crate) fn pdf_small(
     let mut figure = Figure::new();
     figure
         .set(Font(DEFAULT_FONT))
-        .set(size.unwrap_or(SIZE))
+        .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
         .configure(Axis::BottomX, |a| {
             a.set(Label(format!("Average time ({})", unit)))
                 .set(Range::Limits(xs_.min(), xs_.max()))
@@ -317,7 +318,7 @@ fn pdf_comparison_figure(
     let mut figure = Figure::new();
     figure
         .set(Font(DEFAULT_FONT))
-        .set(size.unwrap_or(SIZE))
+        .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
         .configure(Axis::BottomX, |a| {
             a.set(Label(format!("Average time ({})", unit)))
         })

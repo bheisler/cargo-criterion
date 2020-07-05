@@ -1,11 +1,10 @@
-use std::iter;
-use std::process::Child;
-
-use criterion_plot::prelude::*;
-
 use super::*;
 use crate::kde;
+use crate::plot::Size;
+use crate::plot::KDE_POINTS;
 use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
+use std::iter;
+use std::process::Child;
 
 pub(crate) fn t_test(
     id: &BenchmarkId,
@@ -21,7 +20,7 @@ pub(crate) fn t_test(
     let mut figure = Figure::new();
     figure
         .set(Font(DEFAULT_FONT))
-        .set(size.unwrap_or(SIZE))
+        .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
         .set(Title(format!(
             "{}: Welch t test",
             gnuplot_escape(id.as_title())

@@ -1,4 +1,5 @@
 use super::*;
+use crate::plot::KDE_POINTS;
 use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
 use crate::value_formatter::ValueFormatter;
 use plotters::data;
@@ -11,7 +12,7 @@ pub(crate) fn pdf_comparison_figure(
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
     comparison: &ComparisonData,
-    size: Option<(u32, u32)>,
+    size: Option<Size>,
 ) {
     let base_avg_times = Sample::new(&comparison.base_avg_times);
     let typical = base_avg_times.max().max(measurements.avg_times.max());
@@ -38,7 +39,7 @@ pub(crate) fn pdf_comparison_figure(
     let y_range = data::fitting_range(base_ys.iter().chain(ys.iter()));
 
     let size = size.unwrap_or(SIZE);
-    let root_area = SVGBackend::new(&path, (size.0 as u32, size.1 as u32)).into_drawing_area();
+    let root_area = SVGBackend::new(&path, size.into()).into_drawing_area();
 
     let mut cb = ChartBuilder::on(&root_area);
 
@@ -114,7 +115,7 @@ pub(crate) fn pdf_small(
     context: &ReportContext,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
-    size: Option<(u32, u32)>,
+    size: Option<Size>,
 ) {
     let avg_times = &*measurements.avg_times;
     let typical = avg_times.max();
@@ -132,7 +133,7 @@ pub(crate) fn pdf_small(
     let path = context.report_path(id, "pdf_small.svg");
 
     let size = size.unwrap_or(SIZE);
-    let root_area = SVGBackend::new(&path, (size.0 as u32, size.1 as u32)).into_drawing_area();
+    let root_area = SVGBackend::new(&path, size.into()).into_drawing_area();
 
     let mut chart = ChartBuilder::on(&root_area)
         .margin((5).percent())
@@ -173,7 +174,7 @@ pub(crate) fn pdf(
     context: &ReportContext,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
-    size: Option<(u32, u32)>,
+    size: Option<Size>,
 ) {
     let avg_times = &measurements.avg_times;
     let typical = avg_times.max();
@@ -208,7 +209,7 @@ pub(crate) fn pdf(
     let xs_ = Sample::new(&xs);
 
     let size = size.unwrap_or(SIZE);
-    let root_area = SVGBackend::new(&path, (size.0 as u32, size.1 as u32)).into_drawing_area();
+    let root_area = SVGBackend::new(&path, size.into()).into_drawing_area();
 
     let range = data::fitting_range(ys.iter());
 

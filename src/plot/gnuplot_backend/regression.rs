@@ -1,15 +1,11 @@
-use std::process::Child;
-
-use crate::stats::bivariate::regression::Slope;
-use criterion_plot::prelude::*;
-
 use super::*;
-use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
-use crate::stats::bivariate::Data;
-
 use crate::estimate::{ConfidenceInterval, Estimate};
-
+use crate::plot::Size;
+use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
+use crate::stats::bivariate::regression::Slope;
+use crate::stats::bivariate::Data;
 use crate::value_formatter::ValueFormatter;
+use std::process::Child;
 
 fn regression_figure(
     formatter: &dyn ValueFormatter,
@@ -44,7 +40,7 @@ fn regression_figure(
     let mut figure = Figure::new();
     figure
         .set(Font(DEFAULT_FONT))
-        .set(size.unwrap_or(SIZE))
+        .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
         .configure(Axis::BottomX, |a| {
             a.configure(Grid::Major, |g| g.show())
                 .set(Label(x_label))
@@ -184,7 +180,7 @@ fn regression_comparison_figure(
     let mut figure = Figure::new();
     figure
         .set(Font(DEFAULT_FONT))
-        .set(size.unwrap_or(SIZE))
+        .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
         .configure(Axis::BottomX, |a| {
             a.configure(Grid::Major, |g| g.show())
                 .set(Label(x_label))

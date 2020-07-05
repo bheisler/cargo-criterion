@@ -174,7 +174,13 @@ fn configure_cli_output(self_config: &crate::config::SelfConfig) -> crate::repor
 #[cfg(feature = "gnuplot_backend")]
 fn gnuplot_plotter() -> Result<Box<dyn Plotter>, Error> {
     match criterion_plot::version() {
-        Ok(_) => Ok(Box::new(crate::plot::Gnuplot::new())),
+        Ok(_) => {
+            let generator = crate::plot::PlotGenerator {
+                backend: crate::plot::Gnuplot::new(),
+                fallback: Box::new(crate::plot::Gnuplot::new()),
+            };
+            Ok(Box::new(generator))
+        },
         Err(_) => Err(anyhow::anyhow!("Gnuplot is not available. To continue, either install Gnuplot or allow cargo-criterion to fall back to using plotters.")),
     }
 }
@@ -188,7 +194,11 @@ fn gnuplot_plotter() -> Result<Box<dyn Plotter>, Error> {
 /// Configure and return a Plotters plotting backend.
 #[cfg(feature = "plotters_backend")]
 fn plotters_plotter() -> Result<Box<dyn Plotter>, Error> {
-    Ok(Box::new(crate::plot::PlottersBackend))
+    let generator = crate::plot::PlotGenerator {
+        backend: crate::plot::PlottersBackend,
+        fallback: Box::new(crate::plot::PlottersBackend),
+    };
+    Ok(Box::new(generator))
 }
 
 /// Plotters support was not compiled in, so the plotters backend is not available.

@@ -1,11 +1,8 @@
-use std::process::Child;
-
-use criterion_plot::prelude::*;
-
 use super::*;
+use crate::plot::Size;
 use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
-
 use crate::value_formatter::ValueFormatter;
+use std::process::Child;
 
 fn iteration_times_figure(
     formatter: &dyn ValueFormatter,
@@ -21,7 +18,7 @@ fn iteration_times_figure(
     let mut figure = Figure::new();
     figure
         .set(Font(DEFAULT_FONT))
-        .set(size.unwrap_or(SIZE))
+        .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
         .configure(Axis::BottomX, |a| {
             a.configure(Grid::Major, |g| g.show()).set(Label("Sample"))
         })
@@ -100,7 +97,7 @@ fn iteration_times_comparison_figure(
     let mut figure = Figure::new();
     figure
         .set(Font(DEFAULT_FONT))
-        .set(size.unwrap_or(SIZE))
+        .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
         .configure(Axis::BottomX, |a| {
             a.configure(Grid::Major, |g| g.show()).set(Label("Sample"))
         })

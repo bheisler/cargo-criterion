@@ -11,7 +11,7 @@ pub(crate) fn regression_figure(
     path: &Path,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
-    size: Option<(u32, u32)>,
+    size: Option<Size>,
 ) {
     let slope_estimate = &measurements.absolute_estimates.slope.as_ref().unwrap();
     let slope_dist = &measurements.distributions.slope.as_ref().unwrap();
@@ -39,7 +39,7 @@ pub(crate) fn regression_figure(
     };
 
     let size = size.unwrap_or(SIZE);
-    let root_area = SVGBackend::new(path, size).into_drawing_area();
+    let root_area = SVGBackend::new(path, size.into()).into_drawing_area();
 
     let mut cb = ChartBuilder::on(&root_area);
     if let Some(title) = title {
@@ -117,7 +117,7 @@ pub(crate) fn regression_comparison_figure(
     measurements: &MeasurementData<'_>,
     comparison: &ComparisonData,
     base_data: &Data<'_, f64, f64>,
-    size: Option<(u32, u32)>,
+    size: Option<Size>,
 ) {
     let data = &measurements.data;
     let max_iters = base_data.x().max().max(data.x().max());
@@ -168,7 +168,7 @@ pub(crate) fn regression_comparison_figure(
     let y_max = point.max(base_point);
 
     let size = size.unwrap_or(SIZE);
-    let root_area = SVGBackend::new(path, size).into_drawing_area();
+    let root_area = SVGBackend::new(path, size.into()).into_drawing_area();
 
     let mut cb = ChartBuilder::on(&root_area);
     if let Some(title) = title {
