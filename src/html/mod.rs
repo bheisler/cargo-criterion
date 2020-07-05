@@ -7,7 +7,7 @@ use crate::stats::bivariate::regression::Slope;
 use crate::estimate::Estimate;
 use crate::format;
 use crate::model::{Benchmark as BenchmarkModel, BenchmarkGroup as GroupModel, Model};
-use crate::plot::{PlotContext, PlotData, Plotter};
+use crate::plot::{PlotContext, Plotter};
 use crate::value_formatter::ValueFormatter;
 use anyhow::{Context as AnyhowContext, Result};
 use linked_hash_set::LinkedHashSet;
@@ -312,7 +312,7 @@ impl Report for Html {
         id: &BenchmarkId,
         report_context: &ReportContext,
         measurements: &MeasurementData<'_>,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
     ) {
         try_else_return!({
             let report_dir = path!(&report_context.output_directory, id.as_directory_name());
@@ -418,7 +418,7 @@ impl Report for Html {
         context: &ReportContext,
         group_id: &str,
         benchmark_group: &GroupModel,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
     ) {
         if benchmark_group.benchmarks.is_empty() {
             return;
@@ -581,8 +581,8 @@ impl Html {
         &self,
         id: &BenchmarkId,
         context: &ReportContext,
-        formatter: &dyn ValueFormatter,
-        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter,
+        measurements: &MeasurementData,
     ) {
         let plot_ctx = PlotContext {
             id,
@@ -591,37 +591,37 @@ impl Html {
             is_thumbnail: false,
         };
 
-        let plot_data = PlotData {
-            measurements,
-            formatter,
-            comparison: None,
-        };
-
         let plot_ctx_small = plot_ctx.thumbnail(true).size(THUMBNAIL_SIZE);
 
-        self.plotter.borrow_mut().pdf(plot_ctx, plot_data);
         self.plotter
             .borrow_mut()
-            .pdf_thumbnail(plot_ctx_small, plot_data);
+            .pdf(plot_ctx, measurements, formatter);
+        self.plotter
+            .borrow_mut()
+            .pdf_thumbnail(plot_ctx_small, measurements, formatter);
         if measurements.absolute_estimates.slope.is_some() {
-            self.plotter.borrow_mut().regression(plot_ctx, plot_data);
             self.plotter
                 .borrow_mut()
-                .regression_thumbnail(plot_ctx_small, plot_data);
+                .regression(plot_ctx, measurements, formatter);
+            self.plotter
+                .borrow_mut()
+                .regression_thumbnail(plot_ctx_small, measurements, formatter);
         } else {
             self.plotter
                 .borrow_mut()
-                .iteration_times(plot_ctx, plot_data);
-            self.plotter
-                .borrow_mut()
-                .iteration_times_thumbnail(plot_ctx_small, plot_data);
+                .iteration_times(plot_ctx, measurements, formatter);
+            self.plotter.borrow_mut().iteration_times_thumbnail(
+                plot_ctx_small,
+                measurements,
+                formatter,
+            );
         }
 
         self.plotter
             .borrow_mut()
-            .abs_distributions(plot_ctx, plot_data);
+            .abs_distributions(plot_ctx, measurements, formatter);
 
-        if let Some(ref comp) = measurements.comparison {
+        if let Some(ref comparison) = measurements.comparison {
             try_else_return!({
                 let change_dir = path!(&context.output_directory, id.as_directory_name(), "change");
                 mkdirp(&change_dir)
@@ -632,35 +632,50 @@ impl Html {
                 mkdirp(&both_dir)
             });
 
-            let comp_data = plot_data.comparison(&comp);
-
             self.plotter
                 .borrow_mut()
-                .pdf_comparison(plot_ctx, comp_data);
-            self.plotter
-                .borrow_mut()
-                .pdf_comparison_thumbnail(plot_ctx_small, comp_data);
+                .pdf_comparison(plot_ctx, measurements, formatter, comparison);
+            self.plotter.borrow_mut().pdf_comparison_thumbnail(
+                plot_ctx_small,
+                measurements,
+                formatter,
+                comparison,
+            );
             if measurements.absolute_estimates.slope.is_some()
-                && comp.base_estimates.slope.is_some()
+                && comparison.base_estimates.slope.is_some()
             {
-                self.plotter
-                    .borrow_mut()
-                    .regression_comparison(plot_ctx, comp_data);
-                self.plotter
-                    .borrow_mut()
-                    .regression_comparison_thumbnail(plot_ctx_small, comp_data);
+                self.plotter.borrow_mut().regression_comparison(
+                    plot_ctx,
+                    measurements,
+                    formatter,
+                    comparison,
+                );
+                self.plotter.borrow_mut().regression_comparison_thumbnail(
+                    plot_ctx_small,
+                    measurements,
+                    formatter,
+                    comparison,
+                );
             } else {
+                self.plotter.borrow_mut().iteration_times_comparison(
+                    plot_ctx,
+                    measurements,
+                    formatter,
+                    comparison,
+                );
                 self.plotter
                     .borrow_mut()
-                    .iteration_times_comparison(plot_ctx, comp_data);
-                self.plotter
-                    .borrow_mut()
-                    .iteration_times_comparison_thumbnail(plot_ctx_small, comp_data);
+                    .iteration_times_comparison_thumbnail(
+                        plot_ctx_small,
+                        measurements,
+                        formatter,
+                        comparison,
+                    );
             }
-            self.plotter.borrow_mut().t_test(plot_ctx, comp_data);
+            self.plotter.borrow_mut().t_test(plot_ctx, comparison);
             self.plotter
                 .borrow_mut()
-                .rel_distributions(plot_ctx, comp_data);
+                .rel_distributions(plot_ctx, comparison);
         }
 
         self.plotter.borrow_mut().wait();
@@ -671,7 +686,7 @@ impl Html {
         id: &BenchmarkId,
         data: &[(&BenchmarkId, &BenchmarkModel)],
         report_context: &ReportContext,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
         full_summary: bool,
     ) {
         let plot_ctx = PlotContext {

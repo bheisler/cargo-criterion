@@ -76,44 +76,101 @@ impl<'a> PlotContext<'a> {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct PlotData<'a> {
-    pub formatter: &'a dyn ValueFormatter,
-    pub measurements: &'a MeasurementData<'a>,
-    pub comparison: Option<&'a ComparisonData>,
-}
-
-impl<'a> PlotData<'a> {
-    pub fn comparison(mut self, comp: &'a ComparisonData) -> PlotData<'a> {
-        self.comparison = Some(comp);
-        self
-    }
-}
-
 pub trait Plotter {
-    fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
-    fn pdf_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
-    fn pdf_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
-    fn pdf_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn pdf(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    );
+    fn pdf_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    );
+    fn pdf_comparison(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    );
+    fn pdf_comparison_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    );
 
-    fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
-    fn iteration_times_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
-    fn iteration_times_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
-    fn iteration_times_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn iteration_times(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    );
+    fn iteration_times_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    );
+    fn iteration_times_comparison(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    );
+    fn iteration_times_comparison_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    );
 
-    fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
-    fn regression_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
-    fn regression_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
-    fn regression_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn regression(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    );
+    fn regression_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    );
+    fn regression_comparison(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    );
+    fn regression_comparison_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    );
 
-    fn abs_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn abs_distributions(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    );
 
-    fn rel_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn rel_distributions(&mut self, ctx: PlotContext<'_>, comparison: &ComparisonData);
 
     fn line_comparison(
         &mut self,
         ctx: PlotContext<'_>,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
         all_curves: &[(&BenchmarkId, &Benchmark)],
         value_type: ValueType,
     );
@@ -121,11 +178,11 @@ pub trait Plotter {
     fn violin(
         &mut self,
         ctx: PlotContext<'_>,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
         all_curves: &[(&BenchmarkId, &Benchmark)],
     );
 
-    fn t_test(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn t_test(&mut self, ctx: PlotContext<'_>, comparison: &ComparisonData);
 
     fn wait(&mut self);
 }
@@ -318,7 +375,7 @@ impl<B: PlottingBackend> PlotGenerator<B> {
         &mut self,
         id: &BenchmarkId,
         context: &ReportContext,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
         statistic: Statistic,
         distribution: &Distribution<f64>,
         estimate: &Estimate,
@@ -485,16 +542,15 @@ impl<B: PlottingBackend> PlotGenerator<B> {
     fn iteration_time_plot(
         &mut self,
         ctx: PlotContext<'_>,
-        plot_data: PlotData<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
         is_thumbnail: bool,
         file_path: PathBuf,
     ) {
-        let data = &plot_data.measurements.avg_times;
+        let data = &measurements.avg_times;
         let max_avg_time = data.max();
         let mut scaled_y: Vec<_> = data.iter().map(|(f, _)| f).collect();
-        let unit = plot_data
-            .formatter
-            .scale_values(max_avg_time, &mut scaled_y);
+        let unit = formatter.scale_values(max_avg_time, &mut scaled_y);
         let scaled_y = Sample::new(&scaled_y);
 
         let xs: Vec<f64> = (1..=scaled_y.len()).into_iter().map(|i| i as f64).collect();
@@ -517,25 +573,20 @@ impl<B: PlottingBackend> PlotGenerator<B> {
     fn iteration_time_comparison_plot(
         &mut self,
         ctx: PlotContext<'_>,
-        plot_data: PlotData<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
         is_thumbnail: bool,
         file_path: PathBuf,
     ) {
-        let comparison = plot_data
-            .measurements
-            .comparison
-            .as_ref()
-            .expect("Shouldn't call comparison method without comparison data.");
-        let current_data = &plot_data.measurements.avg_times;
+        let current_data = &measurements.avg_times;
         let base_data = &comparison.base_avg_times;
 
         let mut all_data: Vec<f64> = current_data.iter().map(|(f, _)| f).collect();
         all_data.extend_from_slice(base_data);
 
         let typical_value = Sample::new(&all_data).max();
-        let unit = plot_data
-            .formatter
-            .scale_values(typical_value, &mut all_data);
+        let unit = formatter.scale_values(typical_value, &mut all_data);
 
         let (scaled_current_y, scaled_base_y) = all_data.split_at(current_data.len());
         let scaled_current_y = Sample::new(scaled_current_y);
@@ -572,12 +623,11 @@ impl<B: PlottingBackend> PlotGenerator<B> {
     fn regression_plot(
         &mut self,
         ctx: PlotContext<'_>,
-        plot_data: PlotData<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
         is_thumbnail: bool,
         file_path: PathBuf,
     ) {
-        let measurements = plot_data.measurements;
-        let formatter = plot_data.formatter;
         let slope_estimate = &measurements.absolute_estimates.slope.as_ref().unwrap();
         let slope_dist = &measurements.distributions.slope.as_ref().unwrap();
         let (lb, ub) =
@@ -637,16 +687,13 @@ impl<B: PlottingBackend> PlotGenerator<B> {
     fn regression_comparison_plot(
         &mut self,
         ctx: PlotContext<'_>,
-        plot_data: PlotData<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
         is_thumbnail: bool,
         file_path: PathBuf,
     ) {
-        let comparison = plot_data
-            .comparison
-            .expect("Shouldn't call comparison methods without comparison data");
-        let measurements = plot_data.measurements;
         let base_data = Data::new(&comparison.base_iter_counts, &comparison.base_sample_times);
-        let formatter = plot_data.formatter;
 
         let data = &measurements.data;
         let max_iters = base_data.x().max().max(data.x().max());
@@ -735,10 +782,13 @@ impl<B: PlottingBackend> PlotGenerator<B> {
         )
     }
 
-    fn pdf_full(&mut self, ctx: PlotContext<'_>, plot_data: PlotData<'_>, file_path: PathBuf) {
-        let measurements = plot_data.measurements;
-        let formatter = plot_data.formatter;
-
+    fn pdf_full(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        file_path: PathBuf,
+    ) {
         let avg_times = &measurements.avg_times;
         let typical = avg_times.max();
         let mut scaled_avg_times: Vec<f64> = (avg_times as &Sample<f64>).iter().cloned().collect();
@@ -846,12 +896,10 @@ impl<B: PlottingBackend> PlotGenerator<B> {
     fn pdf_thumbnail_plot(
         &mut self,
         ctx: PlotContext<'_>,
-        plot_data: PlotData<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
         file_path: PathBuf,
     ) {
-        let measurements = plot_data.measurements;
-        let formatter = plot_data.formatter;
-
         let avg_times = &*measurements.avg_times;
         let typical = avg_times.max();
         let mut scaled_avg_times: Vec<f64> = (avg_times as &Sample<f64>).iter().cloned().collect();
@@ -878,16 +926,12 @@ impl<B: PlottingBackend> PlotGenerator<B> {
     fn pdf_comparison_plot(
         &mut self,
         ctx: PlotContext<'_>,
-        plot_data: PlotData<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
         file_path: PathBuf,
         is_thumbnail: bool,
     ) {
-        let comparison = plot_data
-            .comparison
-            .expect("Shouldn't call comparison methods without comparison data");
-        let measurements = plot_data.measurements;
-        let formatter = plot_data.formatter;
-
         let base_avg_times = Sample::new(&comparison.base_avg_times);
         let typical = base_avg_times.max().max(measurements.avg_times.max());
         let mut scaled_base_avg_times: Vec<f64> = comparison.base_avg_times.clone();
@@ -954,10 +998,12 @@ impl<B: PlottingBackend> PlotGenerator<B> {
         );
     }
 
-    fn t_test_plot(&mut self, ctx: PlotContext<'_>, plot_data: PlotData<'_>, file_path: PathBuf) {
-        let comparison = plot_data
-            .comparison
-            .expect("Shouldn't call comparison methods without comparison data");
+    fn t_test_plot(
+        &mut self,
+        ctx: PlotContext<'_>,
+        comparison: &ComparisonData,
+        file_path: PathBuf,
+    ) {
         let t = comparison.t_value;
         let (xs, ys) = kde::sweep(&comparison.t_distribution, KDE_POINTS, None);
 
@@ -973,104 +1019,201 @@ impl<B: PlottingBackend> PlotGenerator<B> {
     }
 }
 impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
-    fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.pdf_full(ctx, data, ctx.context.report_path(ctx.id, "pdf.svg"));
+    fn pdf(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    ) {
+        self.pdf_full(
+            ctx,
+            measurements,
+            formatter,
+            ctx.context.report_path(ctx.id, "pdf.svg"),
+        );
     }
-    fn pdf_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.pdf_thumbnail_plot(ctx, data, ctx.context.report_path(ctx.id, "pdf_small.svg"));
+    fn pdf_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    ) {
+        self.pdf_thumbnail_plot(
+            ctx,
+            measurements,
+            formatter,
+            ctx.context.report_path(ctx.id, "pdf_small.svg"),
+        );
     }
-    fn pdf_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn pdf_comparison(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    ) {
         self.pdf_comparison_plot(
             ctx,
-            data,
+            measurements,
+            formatter,
+            comparison,
             ctx.context.report_path(ctx.id, "both/pdf.svg"),
             false,
         )
     }
-    fn pdf_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn pdf_comparison_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    ) {
         self.pdf_comparison_plot(
             ctx,
-            data,
+            measurements,
+            formatter,
+            comparison,
             ctx.context.report_path(ctx.id, "relative_pdf_small.svg"),
             true,
         )
     }
 
-    fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn iteration_times(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    ) {
         self.iteration_time_plot(
             ctx,
-            data,
+            measurements,
+            formatter,
             false,
             ctx.context.report_path(ctx.id, "iteration_times.svg"),
         );
     }
-    fn iteration_times_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn iteration_times_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    ) {
         self.iteration_time_plot(
             ctx,
-            data,
+            measurements,
+            formatter,
             true,
             ctx.context.report_path(ctx.id, "iteration_times_small.svg"),
         );
     }
-    fn iteration_times_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn iteration_times_comparison(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    ) {
         self.iteration_time_comparison_plot(
             ctx,
-            data,
+            measurements,
+            formatter,
+            comparison,
             false,
             ctx.context.report_path(ctx.id, "both/iteration_times.svg"),
         );
     }
-    fn iteration_times_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn iteration_times_comparison_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    ) {
         self.iteration_time_comparison_plot(
             ctx,
-            data,
+            measurements,
+            formatter,
+            comparison,
             true,
             ctx.context
                 .report_path(ctx.id, "relative_iteration_times_small.svg"),
         );
     }
 
-    fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn regression(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    ) {
         self.regression_plot(
             ctx,
-            data,
+            measurements,
+            formatter,
             false,
             ctx.context.report_path(ctx.id, "regression.svg"),
         );
     }
 
-    fn regression_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn regression_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    ) {
         self.regression_plot(
             ctx,
-            data,
+            measurements,
+            formatter,
             true,
             ctx.context.report_path(ctx.id, "regression_small.svg"),
         );
     }
-    fn regression_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn regression_comparison(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    ) {
         self.regression_comparison_plot(
             ctx,
-            data,
+            measurements,
+            formatter,
+            comparison,
             false,
             ctx.context.report_path(ctx.id, "both/regression.svg"),
         );
     }
-    fn regression_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn regression_comparison_thumbnail(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+        comparison: &ComparisonData,
+    ) {
         self.regression_comparison_plot(
             ctx,
-            data,
+            measurements,
+            formatter,
+            comparison,
             true,
             ctx.context
                 .report_path(ctx.id, "relative_regression_small.svg"),
         );
     }
 
-    fn abs_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn abs_distributions(
+        &mut self,
+        ctx: PlotContext<'_>,
+        measurements: &MeasurementData<'_>,
+        formatter: &ValueFormatter<'_>,
+    ) {
         REPORT_STATS
             .iter()
             .filter_map(|stat| {
-                data.measurements.distributions.get(*stat).and_then(|dist| {
-                    data.measurements
+                measurements.distributions.get(*stat).and_then(|dist| {
+                    measurements
                         .absolute_estimates
                         .get(*stat)
                         .map(|est| (*stat, dist, est))
@@ -1080,7 +1223,7 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
                 self.abs_distribution(
                     ctx.id,
                     ctx.context,
-                    data.formatter,
+                    formatter,
                     statistic,
                     distribution,
                     estimate,
@@ -1089,10 +1232,7 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
             })
     }
 
-    fn rel_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let comparison = data
-            .comparison
-            .expect("Should not call rel_distributions without comparison data.");
+    fn rel_distributions(&mut self, ctx: PlotContext<'_>, comparison: &ComparisonData) {
         crate::plot::CHANGE_STATS.iter().for_each(|&statistic| {
             self.rel_distribution(
                 ctx.id,
@@ -1109,7 +1249,7 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
     fn line_comparison(
         &mut self,
         ctx: PlotContext<'_>,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
         all_curves: &[(&BenchmarkId, &Benchmark)],
         value_type: ValueType,
     ) {
@@ -1169,7 +1309,7 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
     fn violin(
         &mut self,
         ctx: PlotContext<'_>,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
         all_curves: &[(&BenchmarkId, &Benchmark)],
     ) {
         let mut kdes = all_curves
@@ -1225,10 +1365,10 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
         )
     }
 
-    fn t_test(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn t_test(&mut self, ctx: PlotContext<'_>, comparison: &ComparisonData) {
         self.t_test_plot(
             ctx,
-            data,
+            comparison,
             ctx.context.report_path(ctx.id, "change/t-test.svg"),
         )
     }

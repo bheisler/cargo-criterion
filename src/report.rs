@@ -268,7 +268,7 @@ pub trait Report {
         _id: &BenchmarkId,
         _context: &ReportContext,
         _measurements: &MeasurementData<'_>,
-        _formatter: &dyn ValueFormatter,
+        _formatter: &ValueFormatter,
     ) {
     }
     fn summarize(
@@ -276,7 +276,7 @@ pub trait Report {
         _context: &ReportContext,
         _group_id: &str,
         _benchmark_group: &BenchmarkGroup,
-        _formatter: &dyn ValueFormatter,
+        _formatter: &ValueFormatter,
     ) {
     }
     fn final_summary(&self, _context: &ReportContext, _model: &Model) {}
@@ -328,7 +328,7 @@ impl<'a> Report for Reports<'a> {
         id: &BenchmarkId,
         context: &ReportContext,
         measurements: &MeasurementData<'_>,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
     ) {
         for report in &self.reports {
             report.measurement_complete(id, context, measurements, formatter);
@@ -340,7 +340,7 @@ impl<'a> Report for Reports<'a> {
         context: &ReportContext,
         group_id: &str,
         benchmark_group: &BenchmarkGroup,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
     ) {
         for report in &self.reports {
             report.summarize(context, group_id, benchmark_group, formatter);
@@ -528,7 +528,7 @@ impl Report for CliReport {
         id: &BenchmarkId,
         _: &ReportContext,
         meas: &MeasurementData<'_>,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
     ) {
         self.text_overwrite();
 
@@ -728,7 +728,7 @@ impl Report for BencherReport {
         _id: &BenchmarkId,
         _: &ReportContext,
         meas: &MeasurementData<'_>,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
     ) {
         let mut values = [
             meas.absolute_estimates.median.point_estimate,
