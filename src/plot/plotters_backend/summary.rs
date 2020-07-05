@@ -34,19 +34,14 @@ pub fn line_comparison(
         plotters::data::fitting_range(series_data.iter().map(|(_, _, ys)| ys.iter()).flatten());
     let root_area = SVGBackend::new(&path, SIZE)
         .into_drawing_area()
-        .titled(&format!("{}: Comparision", title), (DEFAULT_FONT, 20))
+        .titled(&format!("{}: Comparison", title), (DEFAULT_FONT, 20))
         .unwrap();
 
     match axis_scale {
-        AxisScale::Linear => draw_line_comparision_figure(
-            root_area,
-            &unit,
-            x_range,
-            y_range,
-            value_type,
-            series_data,
-        ),
-        AxisScale::Logarithmic => draw_line_comparision_figure(
+        AxisScale::Linear => {
+            draw_line_comparison_figure(root_area, &unit, x_range, y_range, value_type, series_data)
+        }
+        AxisScale::Logarithmic => draw_line_comparison_figure(
             root_area,
             &unit,
             LogRange(x_range),
@@ -57,7 +52,7 @@ pub fn line_comparison(
     }
 }
 
-fn draw_line_comparision_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = f64>>(
+fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = f64>>(
     root_area: DrawingArea<SVGBackend, Shift>,
     y_unit: &str,
     x_range: XR,
