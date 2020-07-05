@@ -71,7 +71,7 @@ impl From<&ThroughputEnum> for Throughput {
 }
 
 #[derive(Serialize)]
-enum Change {
+enum ChangeType {
     NoChange,
     Improved,
     Regressed,
@@ -82,7 +82,7 @@ struct ChangeDetails {
     mean: ConfidenceInterval,
     median: ConfidenceInterval,
 
-    change: Change,
+    change: ChangeType,
 }
 
 #[derive(Serialize)]
@@ -127,7 +127,7 @@ impl JsonMessageReport {
         fn do_send<M: Message>(message: M) -> Result<()> {
             // Format the message to string
             let message_text = serde_json::to_string(&message)?;
-            assert!(message_text.starts_with("{"));
+            assert!(message_text.starts_with('{'));
 
             let reason = json!(M::reason());
 
@@ -169,7 +169,7 @@ impl Report for JsonMessageReport {
             throughput: measurements
                 .throughput
                 .iter()
-                .map(|thrpt| Throughput::from(thrpt))
+                .map(Throughput::from)
                 .collect(),
 
             typical: ConfidenceInterval::from_estimate(
@@ -198,13 +198,13 @@ impl Report for JsonMessageReport {
                 let mean_est = &comparison.relative_estimates.mean;
 
                 let change = if !different_mean {
-                    Change::NoChange
+                    ChangeType::NoChange
                 } else {
                     let comparison = compare_to_threshold(&mean_est, comparison.noise_threshold);
                     match comparison {
-                        ComparisonResult::Improved => Change::Improved,
-                        ComparisonResult::Regressed => Change::Regressed,
-                        ComparisonResult::NonSignificant => Change::NoChange,
+                        ComparisonResult::Improved => ChangeType::Improved,
+                        ComparisonResult::Regressed => ChangeType::Regressed,
+                        ComparisonResult::NonSignificant => ChangeType::NoChange,
                     }
                 };
 
