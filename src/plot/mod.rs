@@ -143,6 +143,11 @@ pub struct LineCurve<'a> {
     ys: &'a [f64],
 }
 
+pub struct Points<'a> {
+    xs: &'a [f64],
+    ys: &'a [f64],
+}
+
 pub struct FilledCurve<'a> {
     xs: &'a [f64],
     ys_1: &'a [f64],
@@ -174,6 +179,18 @@ pub trait PlottingBackend {
         confidence_interval: FilledCurve,
         point_estimate: Line,
         noise_threshold: FilledCurve,
+    );
+
+    fn iteration_times(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+
+        unit: &str,
+        is_thumbnail: bool,
+        current_times: Points,
+        base_times: Option<Points>,
     );
 
     fn wait(&mut self);
@@ -350,6 +367,93 @@ impl<B: PlottingBackend> PlotGenerator<B> {
             noise_threshold,
         );
     }
+
+    fn iteration_time_plot(
+        &mut self,
+        ctx: PlotContext<'_>,
+        plot_data: PlotData<'_>,
+        is_thumbnail: bool,
+        file_path: PathBuf,
+    ) {
+        let data = &plot_data.measurements.avg_times;
+        let max_avg_time = data.max();
+        let mut scaled_y: Vec<_> = data.iter().map(|(f, _)| f).collect();
+        let unit = plot_data
+            .formatter
+            .scale_values(max_avg_time, &mut scaled_y);
+        let scaled_y = Sample::new(&scaled_y);
+
+        let xs: Vec<f64> = (1..=scaled_y.len()).into_iter().map(|i| i as f64).collect();
+
+        let points = Points {
+            xs: &xs,
+            ys: &scaled_y,
+        };
+        self.backend.iteration_times(
+            ctx.id,
+            ctx.size,
+            file_path,
+            &unit,
+            is_thumbnail,
+            points,
+            None,
+        );
+    }
+
+    fn iteration_time_comparison_plot(
+        &mut self,
+        ctx: PlotContext<'_>,
+        plot_data: PlotData<'_>,
+        is_thumbnail: bool,
+        file_path: PathBuf,
+    ) {
+        let comparison = plot_data
+            .measurements
+            .comparison
+            .as_ref()
+            .expect("Shouldn't call comparison method without comparison data.");
+        let current_data = &plot_data.measurements.avg_times;
+        let base_data = &comparison.base_avg_times;
+
+        let mut all_data: Vec<f64> = current_data.iter().map(|(f, _)| f).collect();
+        all_data.extend_from_slice(base_data);
+
+        let typical_value = Sample::new(&all_data).max();
+        let unit = plot_data
+            .formatter
+            .scale_values(typical_value, &mut all_data);
+
+        let (scaled_current_y, scaled_base_y) = all_data.split_at(current_data.len());
+        let scaled_current_y = Sample::new(scaled_current_y);
+        let scaled_base_y = Sample::new(scaled_base_y);
+
+        let current_xs: Vec<f64> = (1..=scaled_current_y.len())
+            .into_iter()
+            .map(|i| i as f64)
+            .collect();
+        let base_xs: Vec<f64> = (1..=scaled_base_y.len())
+            .into_iter()
+            .map(|i| i as f64)
+            .collect();
+
+        let current_points = Points {
+            xs: &current_xs,
+            ys: &scaled_current_y,
+        };
+        let base_points = Points {
+            xs: &base_xs,
+            ys: &scaled_base_y,
+        };
+        self.backend.iteration_times(
+            ctx.id,
+            ctx.size,
+            file_path,
+            &unit,
+            is_thumbnail,
+            current_points,
+            Some(base_points),
+        );
+    }
 }
 impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
     fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
@@ -366,17 +470,37 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
     }
 
     fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.iteration_times(ctx, data);
+        self.iteration_time_plot(
+            ctx,
+            data,
+            false,
+            ctx.context.report_path(ctx.id, "iteration_times.svg"),
+        );
     }
     fn iteration_times_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.iteration_times_thumbnail(ctx, data);
+        self.iteration_time_plot(
+            ctx,
+            data,
+            true,
+            ctx.context.report_path(ctx.id, "iteration_times_small.svg"),
+        );
     }
     fn iteration_times_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.iteration_times_comparison(ctx, data);
+        self.iteration_time_comparison_plot(
+            ctx,
+            data,
+            false,
+            ctx.context.report_path(ctx.id, "both/iteration_times.svg"),
+        );
     }
     fn iteration_times_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback
-            .iteration_times_comparison_thumbnail(ctx, data);
+        self.iteration_time_comparison_plot(
+            ctx,
+            data,
+            true,
+            ctx.context
+                .report_path(ctx.id, "relative_iteration_times_small.svg"),
+        );
     }
 
     fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {

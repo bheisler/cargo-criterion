@@ -2,7 +2,7 @@ use crate::estimate::Statistic;
 use crate::kde;
 use crate::model::Benchmark;
 use crate::plot::{
-    FilledCurve, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend, Size,
+    FilledCurve, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend, Points, Size,
 };
 use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ValueType};
 use crate::stats::bivariate::Data;
@@ -20,7 +20,6 @@ const DARK_BLUE: RGBColor = RGBColor(31, 120, 180);
 const DARK_ORANGE: RGBColor = RGBColor(255, 127, 0);
 const DARK_RED: RGBColor = RGBColor(227, 26, 28);
 
-mod iteration_times;
 mod pdf;
 mod regression;
 mod summary;
@@ -130,51 +129,16 @@ impl Plotter for PlottersBackend {
     }
 
     fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        iteration_times::iteration_times_figure(
-            Some(ctx.id.as_title()),
-            &ctx.context.report_path(ctx.id, "iteration_times.svg"),
-            data.formatter,
-            data.measurements,
-            ctx.size,
-        );
+        unimplemented!()
     }
     fn iteration_times_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        iteration_times::iteration_times_figure(
-            None,
-            &ctx.context.report_path(ctx.id, "iteration_times_small.svg"),
-            data.formatter,
-            data.measurements,
-            ctx.size,
-        );
+        unimplemented!()
     }
     fn iteration_times_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let cmp = data
-            .comparison
-            .expect("Shouldn't call comparison method without comparison data.");
-        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-        iteration_times::iteration_times_comparison_figure(
-            Some(ctx.id.as_title()),
-            &ctx.context.report_path(ctx.id, "both/iteration_times.svg"),
-            data.formatter,
-            data.measurements,
-            cmp,
-            ctx.size,
-        );
+        unimplemented!()
     }
     fn iteration_times_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let cmp = data
-            .comparison
-            .expect("Shouldn't call comparison method without comparison data.");
-        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-        iteration_times::iteration_times_comparison_figure(
-            None,
-            &ctx.context
-                .report_path(ctx.id, "relative_iteration_times_small.svg"),
-            data.formatter,
-            data.measurements,
-            cmp,
-            ctx.size,
-        );
+        unimplemented!()
     }
 
     fn abs_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
@@ -405,6 +369,83 @@ impl PlottingBackend for PlottersBackend {
             .position(SeriesLabelPosition::UpperRight)
             .draw()
             .unwrap();
+    }
+
+    fn iteration_times(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        unit: &str,
+        is_thumbnail: bool,
+        current_times: Points,
+        base_times: Option<Points>,
+    ) {
+        let size = size.unwrap_or(SIZE);
+        let root_area = SVGBackend::new(&path, size.into()).into_drawing_area();
+
+        let mut cb = ChartBuilder::on(&root_area);
+
+        let (x_range, y_range) = if let Some(base) = &base_times {
+            let max_x = Sample::new(current_times.xs)
+                .max()
+                .max(Sample::new(base.xs).max());
+            let x_range = (1.0)..(max_x);
+            let y_range =
+                plotters::data::fitting_range(current_times.ys.iter().chain(base.ys.iter()));
+            (x_range, y_range)
+        } else {
+            let max_x = Sample::new(current_times.xs).max();
+            let x_range = (1.0)..(max_x);
+            let y_range = plotters::data::fitting_range(current_times.ys.iter());
+            (x_range, y_range)
+        };
+
+        let mut chart = cb
+            .margin((5).percent())
+            .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
+            .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
+            .build_ranged(x_range, y_range)
+            .unwrap();
+
+        chart
+            .configure_mesh()
+            .y_desc(format!("Average Iteration Time ({})", unit))
+            .x_label_formatter(&|x| pretty_print_float(*x, true))
+            .line_style_2(&TRANSPARENT)
+            .draw()
+            .unwrap();
+
+        chart
+            .draw_series(
+                (current_times.xs.iter().copied())
+                    .zip(current_times.ys.iter().copied())
+                    .map(|(x, y)| Circle::new((x, y), POINT_SIZE, DARK_BLUE.filled())),
+            )
+            .unwrap()
+            .label("Current")
+            .legend(|(x, y)| Circle::new((x + 10, y), POINT_SIZE, DARK_BLUE.filled()));
+
+        if let Some(base_times) = base_times {
+            chart
+                .draw_series(
+                    (base_times.xs.iter().copied())
+                        .zip(base_times.ys.iter().copied())
+                        .map(|(x, y)| Circle::new((x, y), POINT_SIZE, DARK_RED.filled())),
+                )
+                .unwrap()
+                .label("Base")
+                .legend(|(x, y)| Circle::new((x + 10, y), POINT_SIZE, DARK_RED.filled()));
+        }
+
+        if !is_thumbnail {
+            cb.caption(id.as_title(), (DEFAULT_FONT, 20));
+            chart
+                .configure_series_labels()
+                .position(SeriesLabelPosition::UpperLeft)
+                .draw()
+                .unwrap();
+        }
     }
 
     fn wait(&mut self) {

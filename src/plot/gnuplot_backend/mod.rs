@@ -2,7 +2,6 @@ use criterion_plot::prelude::*;
 use std::iter;
 use std::path::{Path, PathBuf};
 use std::process::Child;
-mod iteration_times;
 mod pdf;
 mod regression;
 mod summary;
@@ -13,6 +12,7 @@ use self::summary::*;
 use self::t_test::*;
 use super::{
     FilledCurve as FilledArea, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend,
+    Points as PointPlot,
 };
 use crate::estimate::Statistic;
 use crate::format;
@@ -22,7 +22,6 @@ use crate::report::{BenchmarkId, ValueType};
 use crate::stats::bivariate::Data;
 use crate::stats::univariate::Sample;
 use crate::value_formatter::ValueFormatter;
-use iteration_times::*;
 
 fn gnuplot_escape(string: &str) -> String {
     string.replace("_", "\\_").replace("'", "''")
@@ -122,47 +121,20 @@ impl Plotter for Gnuplot {
         ));
     }
 
-    fn iteration_times_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(iteration_times_comparison(
-            ctx.id,
-            data.formatter,
-            data.measurements,
-            data.comparison
-                .expect("Shouldn't call comparison method without comparison data."),
-            ctx.size,
-            ctx.context.report_path(ctx.id, "both/iteration_times.svg"),
-        ));
+    fn iteration_times_comparison(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
 
-    fn iteration_times_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(iteration_times_comparison_small(
-            data.formatter,
-            data.measurements,
-            data.comparison
-                .expect("Shouldn't call comparison method without comparison data."),
-            ctx.size,
-            ctx.context
-                .report_path(ctx.id, "relative_iteration_times_small.svg"),
-        ));
+    fn iteration_times_comparison_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
 
-    fn iteration_times_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(iteration_times_small(
-            data.formatter,
-            data.measurements,
-            ctx.size,
-            ctx.context.report_path(ctx.id, "iteration_times_small.svg"),
-        ));
+    fn iteration_times_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
 
-    fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(iteration_times(
-            ctx.id,
-            data.formatter,
-            data.measurements,
-            ctx.size,
-            ctx.context.report_path(ctx.id, "iteration_times.svg"),
-        ));
+    fn iteration_times(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
 
     fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
@@ -453,6 +425,72 @@ impl PlottingBackend for Gnuplot {
         debug_script(&path, &figure);
         self.process_list
             .push(figure.set(Output(path)).draw().unwrap())
+    }
+
+    fn iteration_times(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        file_path: PathBuf,
+
+        unit: &str,
+        is_thumbnail: bool,
+        current_times: PointPlot,
+        base_times: Option<PointPlot>,
+    ) {
+        let mut figure = Figure::new();
+        figure
+            .set(Font(DEFAULT_FONT))
+            .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
+            .configure(Axis::BottomX, |a| {
+                a.configure(Grid::Major, |g| g.show()).set(Label("Sample"))
+            })
+            .configure(Axis::LeftY, |a| {
+                a.configure(Grid::Major, |g| g.show())
+                    .set(Label(format!("Average Iteration Time ({})", unit)))
+            })
+            .plot(
+                Points {
+                    x: current_times.xs,
+                    y: current_times.ys,
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(Label("Current"))
+                        .set(PointSize(0.5))
+                        .set(PointType::FilledCircle)
+                },
+            );
+
+        if let Some(base_times) = base_times {
+            figure.plot(
+                Points {
+                    x: base_times.xs,
+                    y: base_times.ys,
+                },
+                |c| {
+                    c.set(DARK_RED)
+                        .set(Label("Base"))
+                        .set(PointSize(0.5))
+                        .set(PointType::FilledCircle)
+                },
+            );
+        }
+
+        if !is_thumbnail {
+            figure.set(Title(gnuplot_escape(id.as_title())));
+            figure.configure(Key, |k| {
+                k.set(Justification::Left)
+                    .set(Order::SampleText)
+                    .set(Position::Inside(Vertical::Top, Horizontal::Left))
+            });
+        } else {
+            figure.configure(Key, |k| k.hide());
+        }
+
+        debug_script(&file_path, &figure);
+        self.process_list
+            .push(figure.set(Output(file_path)).draw().unwrap())
     }
 
     fn wait(&mut self) {
