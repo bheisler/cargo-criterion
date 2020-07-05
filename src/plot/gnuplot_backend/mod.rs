@@ -7,6 +7,7 @@ use super::{
     FilledCurve as FilledArea, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend,
     Points as PointPlot, Rectangle, VerticalLine,
 };
+use crate::connection::AxisScale;
 use crate::estimate::Statistic;
 use crate::format;
 use crate::model::Benchmark;
@@ -28,6 +29,27 @@ const POINT_SIZE: PointSize = PointSize(0.75);
 const DARK_BLUE: Color = Color::Rgb(31, 120, 180);
 const DARK_ORANGE: Color = Color::Rgb(255, 127, 0);
 const DARK_RED: Color = Color::Rgb(227, 26, 28);
+
+const NUM_COLORS: usize = 8;
+static COMPARISON_COLORS: [Color; NUM_COLORS] = [
+    Color::Rgb(178, 34, 34),
+    Color::Rgb(46, 139, 87),
+    Color::Rgb(0, 139, 139),
+    Color::Rgb(255, 215, 0),
+    Color::Rgb(0, 0, 139),
+    Color::Rgb(220, 20, 60),
+    Color::Rgb(139, 0, 139),
+    Color::Rgb(0, 255, 127),
+];
+
+impl AxisScale {
+    fn to_gnuplot(self) -> Scale {
+        match self {
+            AxisScale::Linear => Scale::Linear,
+            AxisScale::Logarithmic => Scale::Logarithmic,
+        }
+    }
+}
 
 macro_rules! to_lines {
     ($i:ident) => {
@@ -128,20 +150,12 @@ impl Plotter for Gnuplot {
 
     fn line_comparison(
         &mut self,
-        ctx: PlotContext<'_>,
-        formatter: &dyn ValueFormatter,
-        all_benchmarks: &[(&BenchmarkId, &Benchmark)],
-        value_type: ValueType,
+        _: PlotContext<'_>,
+        _: &dyn ValueFormatter,
+        _: &[(&BenchmarkId, &Benchmark)],
+        _: ValueType,
     ) {
-        let path = ctx.line_comparison_path();
-        self.process_list.push(line_comparison(
-            formatter,
-            ctx.id.as_title(),
-            all_benchmarks,
-            path,
-            value_type,
-            ctx.context.plot_config.summary_scale,
-        ));
+        unimplemented!()
     }
 
     fn violin(
@@ -816,6 +830,81 @@ impl PlottingBackend for Gnuplot {
         debug_script(&path, &figure);
         self.process_list
             .push(figure.set(Output(path)).draw().unwrap())
+    }
+
+    fn line_comparison(
+        &mut self,
+        path: PathBuf,
+        title: &str,
+        unit: &str,
+        value_type: ValueType,
+        axis_scale: AxisScale,
+        lines: &[(Option<&String>, LineCurve)],
+    ) {
+        let mut f = Figure::new();
+
+        let input_suffix = match value_type {
+            ValueType::Bytes => " Size (Bytes)",
+            ValueType::Elements => " Size (Elements)",
+            ValueType::Value => "",
+        };
+
+        f.set(Font(DEFAULT_FONT))
+            .set(criterion_plot::Size::from(SIZE))
+            .configure(Key, |k| {
+                k.set(Justification::Left)
+                    .set(Order::SampleText)
+                    .set(Position::Outside(Vertical::Top, Horizontal::Right))
+            })
+            .set(Title(format!("{}: Comparison", gnuplot_escape(title))))
+            .configure(Axis::BottomX, |a| {
+                a.set(Label(format!("Input{}", input_suffix)))
+                    .set(axis_scale.to_gnuplot())
+            });
+
+        let mut i = 0;
+
+        f.configure(Axis::LeftY, |a| {
+            a.configure(Grid::Major, |g| g.show())
+                .configure(Grid::Minor, |g| g.hide())
+                .set(Label(format!("Average time ({})", unit)))
+                .set(axis_scale.to_gnuplot())
+        });
+
+        for (name, curve) in lines {
+            let function_name = name.map(|string| gnuplot_escape(string));
+
+            f.plot(
+                Lines {
+                    x: curve.xs,
+                    y: curve.ys,
+                },
+                |c| {
+                    if let Some(name) = function_name {
+                        c.set(Label(name));
+                    }
+                    c.set(LINEWIDTH)
+                        .set(LineType::Solid)
+                        .set(COMPARISON_COLORS[i % NUM_COLORS])
+                },
+            )
+            .plot(
+                Points {
+                    x: curve.xs,
+                    y: curve.ys,
+                },
+                |p| {
+                    p.set(PointType::FilledCircle)
+                        .set(POINT_SIZE)
+                        .set(COMPARISON_COLORS[i % NUM_COLORS])
+                },
+            );
+
+            i += 1;
+        }
+
+        debug_script(&path, &f);
+        self.process_list.push(f.set(Output(path)).draw().unwrap())
     }
 
     fn wait(&mut self) {

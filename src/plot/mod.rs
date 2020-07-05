@@ -8,6 +8,7 @@ pub use gnuplot_backend::Gnuplot;
 #[cfg(feature = "plotters_backend")]
 pub use plotters_backend::PlottersBackend;
 
+use crate::connection::AxisScale;
 use crate::estimate::Statistic;
 use crate::estimate::{ConfidenceInterval, Estimate};
 use crate::kde;
@@ -18,6 +19,7 @@ use crate::stats::bivariate::Data;
 use crate::stats::univariate::Sample;
 use crate::stats::Distribution;
 use crate::value_formatter::ValueFormatter;
+use linked_hash_map::LinkedHashMap;
 use std::path::PathBuf;
 
 const REPORT_STATS: [Statistic; 7] = [
@@ -284,6 +286,16 @@ pub trait PlottingBackend {
 
         t: VerticalLine,
         t_distribution: FilledCurve,
+    );
+
+    fn line_comparison(
+        &mut self,
+        path: PathBuf,
+        title: &str,
+        unit: &str,
+        value_type: ValueType,
+        axis_scale: AxisScale,
+        lines: &[(Option<&String>, LineCurve)],
     );
 
     fn wait(&mut self);
@@ -1093,8 +1105,57 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
         all_curves: &[(&BenchmarkId, &Benchmark)],
         value_type: ValueType,
     ) {
-        self.fallback
-            .line_comparison(ctx, formatter, all_curves, value_type);
+        let max = all_curves
+            .iter()
+            .map(|(_, bench)| bench.latest_stats.estimates.typical().point_estimate)
+            .fold(::std::f64::NAN, f64::max);
+
+        let mut dummy = [1.0];
+        let unit = formatter.scale_values(max, &mut dummy);
+
+        let mut series_data = vec![];
+
+        let mut function_id_to_benchmarks = LinkedHashMap::new();
+        for (id, bench) in all_curves {
+            function_id_to_benchmarks
+                .entry(&id.function_id)
+                .or_insert(Vec::new())
+                .push((*id, *bench))
+        }
+
+        for (key, group) in function_id_to_benchmarks {
+            // Unwrap is fine here because the caller shouldn't call this with non-numeric IDs.
+            let mut tuples: Vec<_> = group
+                .into_iter()
+                .map(|(id, bench)| {
+                    let x = id.as_number().unwrap();
+                    let y = bench.latest_stats.estimates.typical().point_estimate;
+
+                    (x, y)
+                })
+                .collect();
+            tuples.sort_by(|&(ax, _), &(bx, _)| {
+                ax.partial_cmp(&bx).unwrap_or(std::cmp::Ordering::Less)
+            });
+            let function_name = key.as_ref();
+            let (xs, mut ys): (Vec<_>, Vec<_>) = tuples.into_iter().unzip();
+            formatter.scale_values(max, &mut ys);
+            series_data.push((function_name, xs, ys));
+        }
+
+        let lines: Vec<_> = series_data
+            .iter()
+            .map(|(name, xs, ys)| (*name, LineCurve { xs: &*xs, ys: &*ys }))
+            .collect();
+
+        self.backend.line_comparison(
+            ctx.line_comparison_path(),
+            ctx.id.as_title(),
+            &unit,
+            value_type,
+            ctx.context.plot_config.summary_scale,
+            &lines,
+        );
     }
 
     fn violin(

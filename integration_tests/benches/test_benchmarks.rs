@@ -1,6 +1,9 @@
 //! This benchmark defines some test benchmarks that exercise various parts of cargo-criterion.
 
-use criterion::{criterion_group, criterion_main, Criterion, SamplingMode, Throughput};
+use criterion::{
+    criterion_group, criterion_main, AxisScale, BenchmarkId, Criterion, PlotConfiguration,
+    SamplingMode, Throughput,
+};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -52,6 +55,38 @@ fn throughput_tests(c: &mut Criterion) {
     group.finish();
 }
 
+fn log_scale_tests(c: &mut Criterion) {
+    let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
+
+    let mut group = c.benchmark_group("log_scale");
+    group.plot_config(plot_config);
+
+    for time in &[1, 100, 10000] {
+        group.bench_with_input(
+            BenchmarkId::new("sleep (micros)", time),
+            time,
+            |bencher, input| bencher.iter(|| sleep(Duration::from_micros(*input))),
+        );
+    }
+    group.finish()
+}
+
+fn linear_scale_tests(c: &mut Criterion) {
+    let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Linear);
+
+    let mut group = c.benchmark_group("linear_scale");
+    group.plot_config(plot_config);
+
+    for time in &[1, 2, 3] {
+        group.bench_with_input(
+            BenchmarkId::new("sleep (millis)", time),
+            time,
+            |bencher, input| bencher.iter(|| sleep(Duration::from_millis(*input))),
+        );
+    }
+    group.finish()
+}
+
 // These benchmarks are used for testing cargo-criterion, so to make the tests faster we configure
 // them to run quickly. This is not recommended for real benchmarks.
 criterion_group! {
@@ -60,6 +95,6 @@ criterion_group! {
         .warm_up_time(Duration::from_millis(250))
         .measurement_time(Duration::from_millis(500))
         .nresamples(2000);
-    targets = special_characters, sampling_mode_tests, throughput_tests
+    targets = special_characters, sampling_mode_tests, throughput_tests, log_scale_tests, linear_scale_tests,
 }
 criterion_main!(benches);

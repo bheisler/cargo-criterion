@@ -1,3 +1,4 @@
+use crate::connection::AxisScale;
 use crate::estimate::Statistic;
 use crate::kde;
 use crate::model::Benchmark;
@@ -8,6 +9,7 @@ use crate::plot::{
 use crate::report::{BenchmarkId, ValueType};
 use crate::stats::univariate::Sample;
 use crate::value_formatter::ValueFormatter;
+use plotters::coord::{AsRangedCoord, Shift};
 use plotters::data::float::pretty_print_float;
 use plotters::prelude::*;
 use plotters::style::RGBAColor;
@@ -20,6 +22,18 @@ static POINT_SIZE: u32 = 3;
 const DARK_BLUE: RGBColor = RGBColor(31, 120, 180);
 const DARK_ORANGE: RGBColor = RGBColor(255, 127, 0);
 const DARK_RED: RGBColor = RGBColor(227, 26, 28);
+
+const NUM_COLORS: usize = 8;
+static COMPARISON_COLORS: [RGBColor; NUM_COLORS] = [
+    RGBColor(178, 34, 34),
+    RGBColor(46, 139, 87),
+    RGBColor(0, 139, 139),
+    RGBColor(255, 215, 0),
+    RGBColor(0, 0, 139),
+    RGBColor(220, 20, 60),
+    RGBColor(139, 0, 139),
+    RGBColor(0, 255, 127),
+];
 
 mod summary;
 
@@ -58,6 +72,68 @@ impl<'a> Points<'a> {
 
 #[derive(Default)]
 pub struct PlottersBackend;
+impl PlottersBackend {
+    fn draw_line_comparison_figure<
+        XR: AsRangedCoord<Value = f64>,
+        YR: AsRangedCoord<Value = f64>,
+    >(
+        &self,
+        root_area: DrawingArea<SVGBackend, Shift>,
+        y_unit: &str,
+        x_range: XR,
+        y_range: YR,
+        value_type: ValueType,
+        data: &[(Option<&String>, LineCurve)],
+    ) {
+        let input_suffix = match value_type {
+            ValueType::Bytes => " Size (Bytes)",
+            ValueType::Elements => " Size (Elements)",
+            ValueType::Value => "",
+        };
+
+        let mut chart = ChartBuilder::on(&root_area)
+            .margin((5).percent())
+            .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
+            .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
+            .build_ranged(x_range, y_range)
+            .unwrap();
+
+        chart
+            .configure_mesh()
+            .disable_mesh()
+            .x_desc(format!("Input{}", input_suffix))
+            .y_desc(format!("Average time ({})", y_unit))
+            .draw()
+            .unwrap();
+
+        for (id, (name, curve)) in (0..).zip(data.into_iter()) {
+            let series = chart
+                .draw_series(
+                    LineSeries::new(
+                        curve.to_points(),
+                        COMPARISON_COLORS[id % NUM_COLORS].filled(),
+                    )
+                    .point_size(POINT_SIZE),
+                )
+                .unwrap();
+            if let Some(name) = name {
+                let name: &str = &*name;
+                series.label(name).legend(move |(x, y)| {
+                    Rectangle::new(
+                        [(x, y - 5), (x + 20, y + 5)],
+                        COMPARISON_COLORS[id % NUM_COLORS].filled(),
+                    )
+                });
+            }
+        }
+
+        chart
+            .configure_series_labels()
+            .position(SeriesLabelPosition::UpperLeft)
+            .draw()
+            .unwrap();
+    }
+}
 
 #[allow(unused_variables)]
 impl Plotter for PlottersBackend {
@@ -115,15 +191,7 @@ impl Plotter for PlottersBackend {
         all_benchmarks: &[(&BenchmarkId, &Benchmark)],
         value_type: ValueType,
     ) {
-        let path = ctx.line_comparison_path();
-        summary::line_comparison(
-            formatter,
-            ctx.id.as_title(),
-            all_benchmarks,
-            &path,
-            value_type,
-            ctx.context.plot_config.summary_scale,
-        );
+        unimplemented!()
     }
 
     fn violin(
@@ -875,6 +943,38 @@ impl PlottingBackend for PlottersBackend {
             .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
 
         chart.configure_series_labels().draw().unwrap();
+    }
+
+    fn line_comparison(
+        &mut self,
+        path: PathBuf,
+        title: &str,
+        unit: &str,
+        value_type: ValueType,
+        axis_scale: AxisScale,
+        lines: &[(Option<&String>, LineCurve)],
+    ) {
+        let x_range =
+            plotters::data::fitting_range(lines.iter().flat_map(|(_, curve)| curve.xs.iter()));
+        let y_range =
+            plotters::data::fitting_range(lines.iter().flat_map(|(_, curve)| curve.ys.iter()));
+        let root_area = SVGBackend::new(&path, SIZE.into())
+            .into_drawing_area()
+            .titled(&format!("{}: Comparison", title), (DEFAULT_FONT, 20))
+            .unwrap();
+
+        match axis_scale {
+            AxisScale::Linear => self
+                .draw_line_comparison_figure(root_area, &unit, x_range, y_range, value_type, lines),
+            AxisScale::Logarithmic => self.draw_line_comparison_figure(
+                root_area,
+                &unit,
+                LogRange(x_range),
+                LogRange(y_range),
+                value_type,
+                lines,
+            ),
+        }
     }
 
     fn wait(&mut self) {
