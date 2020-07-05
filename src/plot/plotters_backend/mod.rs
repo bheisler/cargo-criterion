@@ -2,10 +2,10 @@ use crate::estimate::Statistic;
 use crate::kde;
 use crate::model::Benchmark;
 use crate::plot::{
-    FilledCurve, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend, Points, Size,
+    FilledCurve, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend, Points,
+    Rectangle as RectangleArea, Size,
 };
-use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ValueType};
-use crate::stats::bivariate::Data;
+use crate::report::{BenchmarkId, ValueType};
 use crate::stats::univariate::Sample;
 use crate::value_formatter::ValueFormatter;
 use plotters::data::float::pretty_print_float;
@@ -21,7 +21,6 @@ const DARK_ORANGE: RGBColor = RGBColor(255, 127, 0);
 const DARK_RED: RGBColor = RGBColor(227, 26, 28);
 
 mod pdf;
-mod regression;
 mod summary;
 mod t_test;
 
@@ -79,53 +78,16 @@ impl Plotter for PlottersBackend {
     }
 
     fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        regression::regression_figure(
-            Some(ctx.id.as_title()),
-            &ctx.context.report_path(ctx.id, "regression.svg"),
-            data.formatter,
-            data.measurements,
-            ctx.size,
-        );
+        unimplemented!()
     }
     fn regression_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        regression::regression_figure(
-            None,
-            &ctx.context.report_path(ctx.id, "regression_small.svg"),
-            data.formatter,
-            data.measurements,
-            ctx.size,
-        );
+        unimplemented!()
     }
     fn regression_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let cmp = data
-            .comparison
-            .expect("Shouldn't call comparison method without comparison data.");
-        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-        regression::regression_comparison_figure(
-            Some(ctx.id.as_title()),
-            &ctx.context.report_path(ctx.id, "both/regression.svg"),
-            data.formatter,
-            data.measurements,
-            cmp,
-            &base_data,
-            ctx.size,
-        );
+        unimplemented!()
     }
     fn regression_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let cmp = data
-            .comparison
-            .expect("Shouldn't call comparison method without comparison data.");
-        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-        regression::regression_comparison_figure(
-            None,
-            &ctx.context
-                .report_path(ctx.id, "relative_regression_small.svg"),
-            data.formatter,
-            data.measurements,
-            cmp,
-            &base_data,
-            ctx.size,
-        );
+        unimplemented!()
     }
 
     fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
@@ -287,7 +249,7 @@ impl PlottingBackend for PlottersBackend {
         distribution_curve: LineCurve,
         confidence_interval: FilledCurve,
         point_estimate: Line,
-        noise_threshold: FilledCurve,
+        noise_threshold: RectangleArea,
     ) {
         let xs_ = Sample::new(&distribution_curve.xs);
         let x_min = xs_.min();
@@ -354,8 +316,8 @@ impl PlottingBackend for PlottersBackend {
         chart
             .draw_series(std::iter::once(Rectangle::new(
                 [
-                    (noise_threshold.xs[0], y_range.start),
-                    (noise_threshold.xs[1], y_range.end),
+                    (noise_threshold.left, y_range.start),
+                    (noise_threshold.right, y_range.end),
                 ],
                 DARK_RED.mix(0.1).filled(),
             )))
@@ -440,6 +402,218 @@ impl PlottingBackend for PlottersBackend {
 
         if !is_thumbnail {
             cb.caption(id.as_title(), (DEFAULT_FONT, 20));
+            chart
+                .configure_series_labels()
+                .position(SeriesLabelPosition::UpperLeft)
+                .draw()
+                .unwrap();
+        }
+    }
+
+    fn regression(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        is_thumbnail: bool,
+        x_label: &str,
+        x_scale: f64,
+        unit: &str,
+        sample: Points,
+        regression: Line,
+        confidence_interval: FilledCurve,
+    ) {
+        let size = size.unwrap_or(SIZE);
+        let root_area = SVGBackend::new(&path, size.into()).into_drawing_area();
+
+        let mut cb = ChartBuilder::on(&root_area);
+        if !is_thumbnail {
+            cb.caption(id.as_title(), (DEFAULT_FONT, 20));
+        }
+
+        let x_range = plotters::data::fitting_range(sample.xs.iter());
+        let y_range = plotters::data::fitting_range(sample.ys.iter());
+
+        let mut chart = cb
+            .margin((5).percent())
+            .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
+            .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
+            .build_ranged(x_range, y_range)
+            .unwrap();
+
+        chart
+            .configure_mesh()
+            .x_desc(x_label)
+            .y_desc(format!("Total sample time ({})", unit))
+            .x_label_formatter(&|x| pretty_print_float(x * x_scale, true))
+            .line_style_2(&TRANSPARENT)
+            .draw()
+            .unwrap();
+
+        chart
+            .draw_series(
+                (sample.xs.iter().copied())
+                    .zip(sample.ys.iter().copied())
+                    .map(|(x, y)| Circle::new((x, y), POINT_SIZE, DARK_BLUE.filled())),
+            )
+            .unwrap()
+            .label("Sample")
+            .legend(|(x, y)| Circle::new((x + 10, y), POINT_SIZE, DARK_BLUE.filled()));
+
+        chart
+            .draw_series(std::iter::once(PathElement::new(
+                vec![
+                    (regression.start.x, regression.start.y),
+                    (regression.end.x, regression.end.y),
+                ],
+                &DARK_BLUE,
+            )))
+            .unwrap()
+            .label("Linear regression")
+            .legend(|(x, y)| {
+                PathElement::new(
+                    vec![(x, y), (x + 20, y)],
+                    DARK_BLUE.filled().stroke_width(2),
+                )
+            });
+
+        chart
+            .draw_series(std::iter::once(Polygon::new(
+                vec![
+                    (confidence_interval.xs[0], confidence_interval.ys_2[0]),
+                    (confidence_interval.xs[1], confidence_interval.ys_1[1]),
+                    (confidence_interval.xs[1], confidence_interval.ys_2[1]),
+                ],
+                DARK_BLUE.mix(0.25).filled(),
+            )))
+            .unwrap()
+            .label("Confidence interval")
+            .legend(|(x, y)| {
+                Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_BLUE.mix(0.25).filled())
+            });
+
+        if !is_thumbnail {
+            chart
+                .configure_series_labels()
+                .position(SeriesLabelPosition::UpperLeft)
+                .draw()
+                .unwrap();
+        }
+    }
+
+    fn regression_comparison(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        is_thumbnail: bool,
+        x_label: &str,
+        x_scale: f64,
+        unit: &str,
+        current_regression: Line,
+        current_confidence_interval: FilledCurve,
+        base_regression: Line,
+        base_confidence_interval: FilledCurve,
+    ) {
+        let y_max = current_regression.end.y.max(base_regression.end.y);
+        let size = size.unwrap_or(SIZE);
+        let root_area = SVGBackend::new(&path, size.into()).into_drawing_area();
+
+        let mut cb = ChartBuilder::on(&root_area);
+        if !is_thumbnail {
+            cb.caption(id.as_title(), (DEFAULT_FONT, 20));
+        }
+
+        let mut chart = cb
+            .margin((5).percent())
+            .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
+            .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
+            .build_ranged(0.0..current_regression.end.x, 0.0..y_max)
+            .unwrap();
+
+        chart
+            .configure_mesh()
+            .x_desc(x_label)
+            .y_desc(format!("Total sample time ({})", unit))
+            .x_label_formatter(&|x| pretty_print_float(x * x_scale, true))
+            .line_style_2(&TRANSPARENT)
+            .draw()
+            .unwrap();
+
+        chart
+            .draw_series(vec![
+                PathElement::new(
+                    vec![
+                        (base_regression.start.x, base_regression.start.y),
+                        (base_regression.end.x, base_regression.end.y),
+                    ],
+                    &DARK_RED,
+                )
+                .into_dyn(),
+                Polygon::new(
+                    vec![
+                        (
+                            base_confidence_interval.xs[0],
+                            base_confidence_interval.ys_2[0],
+                        ),
+                        (
+                            base_confidence_interval.xs[1],
+                            base_confidence_interval.ys_1[1],
+                        ),
+                        (
+                            base_confidence_interval.xs[1],
+                            base_confidence_interval.ys_2[1],
+                        ),
+                    ],
+                    DARK_RED.mix(0.25).filled(),
+                )
+                .into_dyn(),
+            ])
+            .unwrap()
+            .label("Base Sample")
+            .legend(|(x, y)| {
+                PathElement::new(vec![(x, y), (x + 20, y)], DARK_RED.filled().stroke_width(2))
+            });
+
+        chart
+            .draw_series(vec![
+                PathElement::new(
+                    vec![
+                        (current_regression.start.x, current_regression.start.y),
+                        (current_regression.end.x, current_regression.end.y),
+                    ],
+                    &DARK_BLUE,
+                )
+                .into_dyn(),
+                Polygon::new(
+                    vec![
+                        (
+                            current_confidence_interval.xs[0],
+                            current_confidence_interval.ys_2[0],
+                        ),
+                        (
+                            current_confidence_interval.xs[1],
+                            current_confidence_interval.ys_1[1],
+                        ),
+                        (
+                            current_confidence_interval.xs[1],
+                            current_confidence_interval.ys_2[1],
+                        ),
+                    ],
+                    DARK_BLUE.mix(0.25).filled(),
+                )
+                .into_dyn(),
+            ])
+            .unwrap()
+            .label("New Sample")
+            .legend(|(x, y)| {
+                PathElement::new(
+                    vec![(x, y), (x + 20, y)],
+                    DARK_BLUE.filled().stroke_width(2),
+                )
+            });
+
+        if !is_thumbnail {
             chart
                 .configure_series_labels()
                 .position(SeriesLabelPosition::UpperLeft)

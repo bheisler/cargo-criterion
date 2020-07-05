@@ -3,23 +3,20 @@ use std::iter;
 use std::path::{Path, PathBuf};
 use std::process::Child;
 mod pdf;
-mod regression;
 mod summary;
 mod t_test;
 use self::pdf::*;
-use self::regression::*;
 use self::summary::*;
 use self::t_test::*;
 use super::{
     FilledCurve as FilledArea, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend,
-    Points as PointPlot,
+    Points as PointPlot, Rectangle,
 };
 use crate::estimate::Statistic;
 use crate::format;
 use crate::model::Benchmark;
 use crate::plot::Size;
 use crate::report::{BenchmarkId, ValueType};
-use crate::stats::bivariate::Data;
 use crate::stats::univariate::Sample;
 use crate::value_formatter::ValueFormatter;
 
@@ -137,52 +134,17 @@ impl Plotter for Gnuplot {
         unimplemented!()
     }
 
-    fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(regression(
-            ctx.id,
-            data.formatter,
-            data.measurements,
-            ctx.size,
-            ctx.context.report_path(ctx.id, "regression.svg"),
-        ))
+    fn regression(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
-    fn regression_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(regression_small(
-            data.formatter,
-            data.measurements,
-            ctx.size,
-            ctx.context.report_path(ctx.id, "regression_small.svg"),
-        ))
+    fn regression_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
-    fn regression_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let cmp = data
-            .comparison
-            .expect("Shouldn't call comparison method without comparison data.");
-        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-        self.process_list.push(regression_comparison(
-            ctx.id,
-            data.formatter,
-            data.measurements,
-            cmp,
-            &base_data,
-            ctx.size,
-            ctx.context.report_path(ctx.id, "both/regression.svg"),
-        ))
+    fn regression_comparison(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
-    fn regression_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let cmp = data
-            .comparison
-            .expect("Shouldn't call comparison method without comparison data.");
-        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-        self.process_list.push(regression_comparison_small(
-            data.formatter,
-            data.measurements,
-            cmp,
-            &base_data,
-            ctx.size,
-            ctx.context
-                .report_path(ctx.id, "relative_regression_small.svg"),
-        ))
+    fn regression_comparison_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
 
     fn abs_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
@@ -345,7 +307,7 @@ impl PlottingBackend for Gnuplot {
         distribution_curve: LineCurve,
         confidence_interval: FilledArea,
         point_estimate: Line,
-        noise_threshold: FilledArea,
+        noise_threshold: Rectangle,
     ) {
         let xs_ = Sample::new(&distribution_curve.xs);
         let x_min = xs_.min();
@@ -410,9 +372,9 @@ impl PlottingBackend for Gnuplot {
             )
             .plot(
                 FilledCurve {
-                    x: noise_threshold.xs,
-                    y1: noise_threshold.ys_1,
-                    y2: noise_threshold.ys_2,
+                    x: &[noise_threshold.left, noise_threshold.right],
+                    y1: &[noise_threshold.bottom, noise_threshold.bottom],
+                    y2: &[noise_threshold.top, noise_threshold.top],
                 },
                 |c| {
                     c.set(Axes::BottomXRightY)
@@ -491,6 +453,169 @@ impl PlottingBackend for Gnuplot {
         debug_script(&file_path, &figure);
         self.process_list
             .push(figure.set(Output(file_path)).draw().unwrap())
+    }
+
+    fn regression(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        file_path: PathBuf,
+        is_thumbnail: bool,
+        x_label: &str,
+        x_scale: f64,
+        unit: &str,
+        sample: PointPlot,
+        regression: Line,
+        confidence_interval: FilledArea,
+    ) {
+        let mut figure = Figure::new();
+        figure
+            .set(Font(DEFAULT_FONT))
+            .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
+            .configure(Axis::BottomX, |a| {
+                a.configure(Grid::Major, |g| g.show())
+                    .set(Label(x_label.to_owned()))
+                    .set(ScaleFactor(x_scale))
+            })
+            .configure(Axis::LeftY, |a| {
+                a.configure(Grid::Major, |g| g.show())
+                    .set(Label(format!("Total sample time ({})", unit)))
+            })
+            .plot(
+                Points {
+                    x: sample.xs,
+                    y: sample.ys,
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(Label("Sample"))
+                        .set(PointSize(0.5))
+                        .set(PointType::FilledCircle)
+                },
+            )
+            .plot(
+                Lines {
+                    x: &[regression.start.x, regression.end.x],
+                    y: &[regression.start.y, regression.end.y],
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(LINEWIDTH)
+                        .set(Label("Linear regression"))
+                        .set(LineType::Solid)
+                },
+            )
+            .plot(
+                FilledCurve {
+                    x: confidence_interval.xs,
+                    y1: confidence_interval.ys_1,
+                    y2: confidence_interval.ys_2,
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(Label("Confidence interval"))
+                        .set(Opacity(0.25))
+                },
+            );
+
+        if !is_thumbnail {
+            figure.set(Title(gnuplot_escape(id.as_title())));
+            figure.configure(Key, |k| {
+                k.set(Justification::Left)
+                    .set(Order::SampleText)
+                    .set(Position::Inside(Vertical::Top, Horizontal::Left))
+            });
+        } else {
+            figure.configure(Key, |k| k.hide());
+        }
+
+        debug_script(&file_path, &figure);
+        self.process_list
+            .push(figure.set(Output(file_path)).draw().unwrap())
+    }
+
+    fn regression_comparison(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        is_thumbnail: bool,
+        x_label: &str,
+        x_scale: f64,
+        unit: &str,
+        current_regression: Line,
+        current_confidence_interval: FilledArea,
+        base_regression: Line,
+        base_confidence_interval: FilledArea,
+    ) {
+        let mut figure = Figure::new();
+        figure
+            .set(Font(DEFAULT_FONT))
+            .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
+            .configure(Axis::BottomX, |a| {
+                a.configure(Grid::Major, |g| g.show())
+                    .set(Label(x_label.to_owned()))
+                    .set(ScaleFactor(x_scale))
+            })
+            .configure(Axis::LeftY, |a| {
+                a.configure(Grid::Major, |g| g.show())
+                    .set(Label(format!("Total sample time ({})", unit)))
+            })
+            .configure(Key, |k| {
+                k.set(Justification::Left)
+                    .set(Order::SampleText)
+                    .set(Position::Inside(Vertical::Top, Horizontal::Left))
+            })
+            .plot(
+                FilledCurve {
+                    x: base_confidence_interval.xs,
+                    y1: base_confidence_interval.ys_1,
+                    y2: base_confidence_interval.ys_2,
+                },
+                |c| c.set(DARK_RED).set(Opacity(0.25)),
+            )
+            .plot(
+                FilledCurve {
+                    x: current_confidence_interval.xs,
+                    y1: current_confidence_interval.ys_1,
+                    y2: current_confidence_interval.ys_2,
+                },
+                |c| c.set(DARK_BLUE).set(Opacity(0.25)),
+            )
+            .plot(
+                Lines {
+                    x: &[base_regression.start.x, base_regression.end.x],
+                    y: &[base_regression.start.y, base_regression.end.y],
+                },
+                |c| {
+                    c.set(DARK_RED)
+                        .set(LINEWIDTH)
+                        .set(Label("Base sample"))
+                        .set(LineType::Solid)
+                },
+            )
+            .plot(
+                Lines {
+                    x: &[current_regression.start.x, current_regression.end.x],
+                    y: &[current_regression.start.y, current_regression.end.y],
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(LINEWIDTH)
+                        .set(Label("New sample"))
+                        .set(LineType::Solid)
+                },
+            );
+
+        if is_thumbnail {
+            figure.configure(Key, |k| k.hide());
+        } else {
+            figure.set(Title(gnuplot_escape(id.as_title())));
+        }
+
+        debug_script(&path, &figure);
+        self.process_list
+            .push(figure.set(Output(path)).draw().unwrap())
     }
 
     fn wait(&mut self) {

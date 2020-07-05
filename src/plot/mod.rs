@@ -8,11 +8,13 @@ pub use gnuplot_backend::Gnuplot;
 #[cfg(feature = "plotters_backend")]
 pub use plotters_backend::PlottersBackend;
 
-use crate::estimate::Estimate;
 use crate::estimate::Statistic;
+use crate::estimate::{ConfidenceInterval, Estimate};
 use crate::kde;
 use crate::model::Benchmark;
 use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext, ValueType};
+use crate::stats::bivariate::regression::Slope;
+use crate::stats::bivariate::Data;
 use crate::stats::univariate::Sample;
 use crate::stats::Distribution;
 use crate::value_formatter::ValueFormatter;
@@ -154,6 +156,13 @@ pub struct FilledCurve<'a> {
     ys_2: &'a [f64],
 }
 
+pub struct Rectangle {
+    left: f64,
+    right: f64,
+    top: f64,
+    bottom: f64,
+}
+
 pub trait PlottingBackend {
     fn abs_distribution(
         &mut self,
@@ -178,7 +187,7 @@ pub trait PlottingBackend {
         distribution_curve: LineCurve,
         confidence_interval: FilledCurve,
         point_estimate: Line,
-        noise_threshold: FilledCurve,
+        noise_threshold: Rectangle,
     );
 
     fn iteration_times(
@@ -191,6 +200,37 @@ pub trait PlottingBackend {
         is_thumbnail: bool,
         current_times: Points,
         base_times: Option<Points>,
+    );
+
+    fn regression(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        is_thumbnail: bool,
+
+        x_label: &str,
+        x_scale: f64,
+        unit: &str,
+        sample: Points,
+        regression: Line,
+        confidence_interval: FilledCurve,
+    );
+
+    fn regression_comparison(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        is_thumbnail: bool,
+
+        x_label: &str,
+        x_scale: f64,
+        unit: &str,
+        current_regression: Line,
+        current_confidence_interval: FilledCurve,
+        base_regression: Line,
+        base_confidence_interval: FilledCurve,
     );
 
     fn wait(&mut self);
@@ -350,10 +390,11 @@ impl<B: PlottingBackend> PlotGenerator<B> {
                 y: y_point,
             },
         };
-        let noise_threshold = FilledCurve {
-            xs: &[fc_start, fc_end],
-            ys_1: &[1.0, 1.0],
-            ys_2: &[0.0, 0.0],
+        let noise_threshold = Rectangle {
+            left: fc_start,
+            right: fc_end,
+            top: 1.0,
+            bottom: 0.0,
         };
 
         self.backend.rel_distribution(
@@ -454,6 +495,172 @@ impl<B: PlottingBackend> PlotGenerator<B> {
             Some(base_points),
         );
     }
+
+    fn regression_plot(
+        &mut self,
+        ctx: PlotContext<'_>,
+        plot_data: PlotData<'_>,
+        is_thumbnail: bool,
+        file_path: PathBuf,
+    ) {
+        let measurements = plot_data.measurements;
+        let formatter = plot_data.formatter;
+        let slope_estimate = &measurements.absolute_estimates.slope.as_ref().unwrap();
+        let slope_dist = &measurements.distributions.slope.as_ref().unwrap();
+        let (lb, ub) =
+            slope_dist.confidence_interval(slope_estimate.confidence_interval.confidence_level);
+
+        let data = &measurements.data;
+        let (max_iters, typical) = (data.x().max(), data.y().max());
+        let mut scaled_y: Vec<f64> = data.y().iter().cloned().collect();
+        let unit = formatter.scale_values(typical, &mut scaled_y);
+        let scaled_y = Sample::new(&scaled_y);
+
+        let point_estimate = Slope::fit(&measurements.data).0;
+        let mut scaled_points = [point_estimate * max_iters, lb * max_iters, ub * max_iters];
+        let _ = formatter.scale_values(typical, &mut scaled_points);
+        let [point, lb, ub] = scaled_points;
+
+        let exponent = (max_iters.log10() / 3.).floor() as i32 * 3;
+        let x_scale = 10f64.powi(-exponent);
+
+        let x_label = if exponent == 0 {
+            "Iterations".to_owned()
+        } else {
+            format!("Iterations (x 10^{})", exponent)
+        };
+
+        let sample = Points {
+            xs: data.x(),
+            ys: scaled_y,
+        };
+        let regression = Line {
+            start: Point { x: 0.0, y: 0.0 },
+            end: Point {
+                x: max_iters,
+                y: point,
+            },
+        };
+        let confidence_interval = FilledCurve {
+            xs: &[0.0, max_iters],
+            ys_1: &[0.0, lb],
+            ys_2: &[0.0, ub],
+        };
+
+        self.backend.regression(
+            ctx.id,
+            ctx.size,
+            file_path,
+            is_thumbnail,
+            &x_label,
+            x_scale,
+            &unit,
+            sample,
+            regression,
+            confidence_interval,
+        )
+    }
+
+    fn regression_comparison_plot(
+        &mut self,
+        ctx: PlotContext<'_>,
+        plot_data: PlotData<'_>,
+        is_thumbnail: bool,
+        file_path: PathBuf,
+    ) {
+        let comparison = plot_data
+            .comparison
+            .expect("Shouldn't call comparison methods without comparison data");
+        let measurements = plot_data.measurements;
+        let base_data = Data::new(&comparison.base_iter_counts, &comparison.base_sample_times);
+        let formatter = plot_data.formatter;
+
+        let data = &measurements.data;
+        let max_iters = base_data.x().max().max(data.x().max());
+        let typical = base_data.y().max().max(data.y().max());
+
+        let exponent = (max_iters.log10() / 3.).floor() as i32 * 3;
+        let x_scale = 10f64.powi(-exponent);
+
+        let x_label = if exponent == 0 {
+            "Iterations".to_owned()
+        } else {
+            format!("Iterations (x 10^{})", exponent)
+        };
+
+        let Estimate {
+            confidence_interval:
+                ConfidenceInterval {
+                    lower_bound: base_lb,
+                    upper_bound: base_ub,
+                    ..
+                },
+            point_estimate: base_point,
+            ..
+        } = comparison.base_estimates.slope.as_ref().unwrap();
+
+        let Estimate {
+            confidence_interval:
+                ConfidenceInterval {
+                    lower_bound: lb,
+                    upper_bound: ub,
+                    ..
+                },
+            point_estimate: point,
+            ..
+        } = measurements.absolute_estimates.slope.as_ref().unwrap();
+
+        let mut points = [
+            base_lb * max_iters,
+            base_point * max_iters,
+            base_ub * max_iters,
+            lb * max_iters,
+            point * max_iters,
+            ub * max_iters,
+        ];
+        let unit = formatter.scale_values(typical, &mut points);
+        let [base_lb, base_point, base_ub, lb, point, ub] = points;
+
+        let current_regression = Line {
+            start: Point { x: 0.0, y: 0.0 },
+            end: Point {
+                x: max_iters,
+                y: point,
+            },
+        };
+        let current_confidence_interval = FilledCurve {
+            xs: &[0.0, max_iters],
+            ys_1: &[0.0, lb],
+            ys_2: &[0.0, ub],
+        };
+
+        let base_regression = Line {
+            start: Point { x: 0.0, y: 0.0 },
+            end: Point {
+                x: max_iters,
+                y: base_point,
+            },
+        };
+        let base_confidence_interval = FilledCurve {
+            xs: &[0.0, max_iters],
+            ys_1: &[0.0, base_lb],
+            ys_2: &[0.0, base_ub],
+        };
+
+        self.backend.regression_comparison(
+            ctx.id,
+            ctx.size,
+            file_path,
+            is_thumbnail,
+            &x_label,
+            x_scale,
+            &unit,
+            current_regression,
+            current_confidence_interval,
+            base_regression,
+            base_confidence_interval,
+        )
+    }
 }
 impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
     fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
@@ -504,16 +711,38 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
     }
 
     fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.regression(ctx, data);
+        self.regression_plot(
+            ctx,
+            data,
+            false,
+            ctx.context.report_path(ctx.id, "regression.svg"),
+        );
     }
+
     fn regression_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.regression_thumbnail(ctx, data)
+        self.regression_plot(
+            ctx,
+            data,
+            true,
+            ctx.context.report_path(ctx.id, "regression_small.svg"),
+        );
     }
     fn regression_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.regression_comparison(ctx, data)
+        self.regression_comparison_plot(
+            ctx,
+            data,
+            false,
+            ctx.context.report_path(ctx.id, "both/regression.svg"),
+        );
     }
     fn regression_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.regression_comparison_thumbnail(ctx, data)
+        self.regression_comparison_plot(
+            ctx,
+            data,
+            true,
+            ctx.context
+                .report_path(ctx.id, "relative_regression_small.svg"),
+        );
     }
 
     fn abs_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
