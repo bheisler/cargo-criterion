@@ -2,12 +2,10 @@ use criterion_plot::prelude::*;
 use std::path::{Path, PathBuf};
 use std::process::Child;
 mod summary;
-mod t_test;
 use self::summary::*;
-use self::t_test::*;
 use super::{
     FilledCurve as FilledArea, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend,
-    Points as PointPlot, Rectangle,
+    Points as PointPlot, Rectangle, VerticalLine,
 };
 use crate::estimate::Statistic;
 use crate::format;
@@ -30,6 +28,21 @@ const POINT_SIZE: PointSize = PointSize(0.75);
 const DARK_BLUE: Color = Color::Rgb(31, 120, 180);
 const DARK_ORANGE: Color = Color::Rgb(255, 127, 0);
 const DARK_RED: Color = Color::Rgb(227, 26, 28);
+
+macro_rules! to_lines {
+    ($i:ident) => {
+        Lines {
+            x: &[$i.start.x, $i.end.x],
+            y: &[$i.start.y, $i.end.y],
+        }
+    };
+    ($i:ident, $max_y:expr) => {
+        Lines {
+            x: &[$i.x, $i.x],
+            y: &[0.0, $max_y],
+        }
+    };
+}
 
 fn debug_script(path: &Path, figure: &Figure) {
     if crate::debug_enabled() {
@@ -109,17 +122,8 @@ impl Plotter for Gnuplot {
         unimplemented!()
     }
 
-    fn t_test(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        if let Some(cmp) = data.comparison {
-            self.process_list.push(t_test(
-                ctx.id,
-                cmp,
-                ctx.size,
-                ctx.context.report_path(ctx.id, "change/t-test.svg"),
-            ));
-        } else {
-            error!("Comparison data is not provided for t_test plot");
-        }
+    fn t_test(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
 
     fn line_comparison(
@@ -312,18 +316,12 @@ impl PlottingBackend for Gnuplot {
                         .set(Opacity(0.25))
                 },
             )
-            .plot(
-                Lines {
-                    x: &[point_estimate.start.x, point_estimate.end.x],
-                    y: &[point_estimate.start.y, point_estimate.end.y],
-                },
-                |c| {
-                    c.set(DARK_BLUE)
-                        .set(LINEWIDTH)
-                        .set(Label("Point estimate"))
-                        .set(LineType::Dash)
-                },
-            )
+            .plot(to_lines!(point_estimate), |c| {
+                c.set(DARK_BLUE)
+                    .set(LINEWIDTH)
+                    .set(Label("Point estimate"))
+                    .set(LineType::Dash)
+            })
             .plot(
                 FilledCurve {
                     x: &[noise_threshold.left, noise_threshold.right],
@@ -447,18 +445,12 @@ impl PlottingBackend for Gnuplot {
                         .set(PointType::FilledCircle)
                 },
             )
-            .plot(
-                Lines {
-                    x: &[regression.start.x, regression.end.x],
-                    y: &[regression.start.y, regression.end.y],
-                },
-                |c| {
-                    c.set(DARK_BLUE)
-                        .set(LINEWIDTH)
-                        .set(Label("Linear regression"))
-                        .set(LineType::Solid)
-                },
-            )
+            .plot(to_lines!(regression), |c| {
+                c.set(DARK_BLUE)
+                    .set(LINEWIDTH)
+                    .set(Label("Linear regression"))
+                    .set(LineType::Solid)
+            })
             .plot(
                 FilledCurve {
                     x: confidence_interval.xs,
@@ -536,30 +528,18 @@ impl PlottingBackend for Gnuplot {
                 },
                 |c| c.set(DARK_BLUE).set(Opacity(0.25)),
             )
-            .plot(
-                Lines {
-                    x: &[base_regression.start.x, base_regression.end.x],
-                    y: &[base_regression.start.y, base_regression.end.y],
-                },
-                |c| {
-                    c.set(DARK_RED)
-                        .set(LINEWIDTH)
-                        .set(Label("Base sample"))
-                        .set(LineType::Solid)
-                },
-            )
-            .plot(
-                Lines {
-                    x: &[current_regression.start.x, current_regression.end.x],
-                    y: &[current_regression.start.y, current_regression.end.y],
-                },
-                |c| {
-                    c.set(DARK_BLUE)
-                        .set(LINEWIDTH)
-                        .set(Label("New sample"))
-                        .set(LineType::Solid)
-                },
-            );
+            .plot(to_lines!(base_regression), |c| {
+                c.set(DARK_RED)
+                    .set(LINEWIDTH)
+                    .set(Label("Base sample"))
+                    .set(LineType::Solid)
+            })
+            .plot(to_lines!(current_regression), |c| {
+                c.set(DARK_BLUE)
+                    .set(LINEWIDTH)
+                    .set(Label("New sample"))
+                    .set(LineType::Solid)
+            });
 
         if is_thumbnail {
             figure.configure(Key, |k| k.hide());
@@ -580,9 +560,10 @@ impl PlottingBackend for Gnuplot {
         unit: &str,
         y_label: &str,
         y_scale: f64,
+        max_iters: f64,
         pdf: FilledArea,
-        mean: Line,
-        fences: (Line, Line, Line, Line),
+        mean: VerticalLine,
+        fences: (VerticalLine, VerticalLine, VerticalLine, VerticalLine),
         points: (PointPlot, PointPlot, PointPlot),
     ) {
         let (low_severe, low_mild, high_mild, high_severe) = fences;
@@ -599,7 +580,7 @@ impl PlottingBackend for Gnuplot {
             })
             .configure(Axis::LeftY, |a| {
                 a.set(Label(y_label.to_owned()))
-                    .set(Range::Limits(0., mean.end.y * y_scale))
+                    .set(Range::Limits(0., max_iters * y_scale))
                     .set(ScaleFactor(y_scale))
             })
             .configure(Axis::RightY, |a| a.set(Label("Density (a.u.)")))
@@ -621,18 +602,12 @@ impl PlottingBackend for Gnuplot {
                         .set(Opacity(0.25))
                 },
             )
-            .plot(
-                Lines {
-                    x: &[mean.start.x, mean.end.x],
-                    y: &[mean.start.y, mean.end.y],
-                },
-                |c| {
-                    c.set(DARK_BLUE)
-                        .set(LINEWIDTH)
-                        .set(LineType::Dash)
-                        .set(Label("Mean"))
-                },
-            )
+            .plot(to_lines!(mean, max_iters), |c| {
+                c.set(DARK_BLUE)
+                    .set(LINEWIDTH)
+                    .set(LineType::Dash)
+                    .set(Label("Mean"))
+            })
             .plot(
                 Points {
                     x: not_outlier.xs,
@@ -669,34 +644,18 @@ impl PlottingBackend for Gnuplot {
                         .set(PointType::FilledCircle)
                 },
             )
-            .plot(
-                Lines {
-                    x: &[low_mild.start.x, low_mild.end.x],
-                    y: &[low_mild.start.y, low_mild.end.y],
-                },
-                |c| c.set(DARK_ORANGE).set(LINEWIDTH).set(LineType::Dash),
-            )
-            .plot(
-                Lines {
-                    x: &[high_mild.start.x, high_mild.end.x],
-                    y: &[high_mild.start.y, high_mild.end.y],
-                },
-                |c| c.set(DARK_ORANGE).set(LINEWIDTH).set(LineType::Dash),
-            )
-            .plot(
-                Lines {
-                    x: &[low_severe.start.x, low_severe.end.x],
-                    y: &[low_severe.start.y, low_severe.end.y],
-                },
-                |c| c.set(DARK_RED).set(LINEWIDTH).set(LineType::Dash),
-            )
-            .plot(
-                Lines {
-                    x: &[high_severe.start.x, high_severe.end.x],
-                    y: &[high_severe.start.y, high_severe.end.y],
-                },
-                |c| c.set(DARK_RED).set(LINEWIDTH).set(LineType::Dash),
-            );
+            .plot(to_lines!(low_mild, max_iters), |c| {
+                c.set(DARK_ORANGE).set(LINEWIDTH).set(LineType::Dash)
+            })
+            .plot(to_lines!(high_mild, max_iters), |c| {
+                c.set(DARK_ORANGE).set(LINEWIDTH).set(LineType::Dash)
+            })
+            .plot(to_lines!(low_severe, max_iters), |c| {
+                c.set(DARK_RED).set(LINEWIDTH).set(LineType::Dash)
+            })
+            .plot(to_lines!(high_severe, max_iters), |c| {
+                c.set(DARK_RED).set(LINEWIDTH).set(LineType::Dash)
+            });
         figure.set(Title(gnuplot_escape(id.as_title())));
 
         debug_script(&path, &figure);
@@ -743,13 +702,9 @@ impl PlottingBackend for Gnuplot {
                         .set(Opacity(0.25))
                 },
             )
-            .plot(
-                Lines {
-                    x: &[mean.start.x, mean.end.x],
-                    y: &[mean.start.y, mean.end.y],
-                },
-                |c| c.set(DARK_BLUE).set(LINEWIDTH).set(Label("Mean")),
-            );
+            .plot(to_lines!(mean), |c| {
+                c.set(DARK_BLUE).set(LINEWIDTH).set(Label("Mean"))
+            });
 
         debug_script(&path, &figure);
         self.process_list
@@ -790,13 +745,9 @@ impl PlottingBackend for Gnuplot {
                 },
                 |c| c.set(DARK_RED).set(Label("Base PDF")).set(Opacity(0.5)),
             )
-            .plot(
-                Lines {
-                    x: &[base_mean.start.x, base_mean.end.x],
-                    y: &[base_mean.start.y, base_mean.end.y],
-                },
-                |c| c.set(DARK_RED).set(Label("Base Mean")).set(LINEWIDTH),
-            )
+            .plot(to_lines!(base_mean), |c| {
+                c.set(DARK_RED).set(Label("Base Mean")).set(LINEWIDTH)
+            })
             .plot(
                 FilledCurve {
                     x: current_pdf.xs,
@@ -805,19 +756,63 @@ impl PlottingBackend for Gnuplot {
                 },
                 |c| c.set(DARK_BLUE).set(Label("New PDF")).set(Opacity(0.5)),
             )
-            .plot(
-                Lines {
-                    x: &[current_mean.start.x, current_mean.end.x],
-                    y: &[current_mean.start.y, current_mean.end.y],
-                },
-                |c| c.set(DARK_BLUE).set(Label("New Mean")).set(LINEWIDTH),
-            );
+            .plot(to_lines!(current_mean), |c| {
+                c.set(DARK_BLUE).set(Label("New Mean")).set(LINEWIDTH)
+            });
 
         if is_thumbnail {
             figure.configure(Key, |k| k.hide());
         } else {
             figure.set(Title(gnuplot_escape(id.as_title())));
         }
+        debug_script(&path, &figure);
+        self.process_list
+            .push(figure.set(Output(path)).draw().unwrap())
+    }
+
+    fn t_test(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        t: VerticalLine,
+        t_distribution: FilledArea,
+    ) {
+        let mut figure = Figure::new();
+        figure
+            .set(Font(DEFAULT_FONT))
+            .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
+            .set(Title(format!(
+                "{}: Welch t test",
+                gnuplot_escape(id.as_title())
+            )))
+            .configure(Axis::BottomX, |a| a.set(Label("t score")))
+            .configure(Axis::LeftY, |a| a.set(Label("Density")))
+            .configure(Key, |k| {
+                k.set(Justification::Left)
+                    .set(Order::SampleText)
+                    .set(Position::Outside(Vertical::Top, Horizontal::Right))
+            })
+            .plot(
+                FilledCurve {
+                    x: t_distribution.xs,
+                    y1: t_distribution.ys_1,
+                    y2: t_distribution.ys_2,
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(Label("t distribution"))
+                        .set(Opacity(0.25))
+                },
+            )
+            .plot(to_lines!(t, 1.0), |c| {
+                c.set(Axes::BottomXRightY)
+                    .set(DARK_BLUE)
+                    .set(LINEWIDTH)
+                    .set(Label("t statistic"))
+                    .set(LineType::Solid)
+            });
+
         debug_script(&path, &figure);
         self.process_list
             .push(figure.set(Output(path)).draw().unwrap())

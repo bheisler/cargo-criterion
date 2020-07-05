@@ -139,6 +139,9 @@ pub struct Line {
     pub start: Point,
     pub end: Point,
 }
+pub struct VerticalLine {
+    x: f64,
+}
 
 pub struct LineCurve<'a> {
     xs: &'a [f64],
@@ -242,10 +245,11 @@ pub trait PlottingBackend {
         unit: &str,
         y_label: &str,
         y_scale: f64,
+        max_iters: f64,
 
         pdf: FilledCurve,
-        mean: Line,
-        fences: (Line, Line, Line, Line),
+        mean: VerticalLine,
+        fences: (VerticalLine, VerticalLine, VerticalLine, VerticalLine),
         points: (Points, Points, Points),
     );
     fn pdf_thumbnail(
@@ -271,6 +275,15 @@ pub trait PlottingBackend {
         current_pdf: FilledCurve,
         base_mean: Line,
         base_pdf: FilledCurve,
+    );
+    fn t_test(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+
+        t: VerticalLine,
+        t_distribution: FilledCurve,
     );
 
     fn wait(&mut self);
@@ -739,21 +752,9 @@ impl<B: PlottingBackend> PlotGenerator<B> {
             ys_1: &*ys,
             ys_2: &vec![0.0; ys.len()],
         };
-        let mean = Line {
-            start: Point { x: mean, y: 0.0 },
-            end: Point {
-                x: mean,
-                y: max_iters,
-            },
-        };
+        let mean = VerticalLine { x: mean };
 
-        let make_fence = |fence| Line {
-            start: Point { x: fence, y: 0.0 },
-            end: Point {
-                x: fence,
-                y: max_iters,
-            },
-        };
+        let make_fence = |fence| VerticalLine { x: fence };
         let low_severe = make_fence(lost);
         let low_mild = make_fence(lomt);
         let high_mild = make_fence(himt);
@@ -814,6 +815,7 @@ impl<B: PlottingBackend> PlotGenerator<B> {
             &unit,
             &y_label,
             y_scale,
+            max_iters,
             pdf,
             mean,
             (low_severe, low_mild, high_mild, high_severe),
@@ -930,6 +932,24 @@ impl<B: PlottingBackend> PlotGenerator<B> {
             base_mean,
             base_pdf,
         );
+    }
+
+    fn t_test_plot(&mut self, ctx: PlotContext<'_>, plot_data: PlotData<'_>, file_path: PathBuf) {
+        let comparison = plot_data
+            .comparison
+            .expect("Shouldn't call comparison methods without comparison data");
+        let t = comparison.t_value;
+        let (xs, ys) = kde::sweep(&comparison.t_distribution, KDE_POINTS, None);
+
+        let t = VerticalLine { x: t };
+        let t_distribution = FilledCurve {
+            xs: &*xs,
+            ys_1: &*ys,
+            ys_2: &vec![0.0; ys.len()],
+        };
+
+        self.backend
+            .t_test(ctx.id, ctx.size, file_path, t, t_distribution)
     }
 }
 impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
@@ -1087,7 +1107,11 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
     }
 
     fn t_test(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.t_test(ctx, data);
+        self.t_test_plot(
+            ctx,
+            data,
+            ctx.context.report_path(ctx.id, "change/t-test.svg"),
+        )
     }
 
     fn wait(&mut self) {

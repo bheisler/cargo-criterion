@@ -3,7 +3,7 @@ use crate::kde;
 use crate::model::Benchmark;
 use crate::plot::{
     FilledCurve, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend, Points,
-    Rectangle as RectangleArea, Size,
+    Rectangle as RectangleArea, Size, VerticalLine,
 };
 use crate::report::{BenchmarkId, ValueType};
 use crate::stats::univariate::Sample;
@@ -22,12 +22,37 @@ const DARK_ORANGE: RGBColor = RGBColor(255, 127, 0);
 const DARK_RED: RGBColor = RGBColor(227, 26, 28);
 
 mod summary;
-mod t_test;
 
 impl From<Size> for (u32, u32) {
     fn from(other: Size) -> Self {
         let Size(width, height) = other;
         (width as u32, height as u32)
+    }
+}
+
+impl VerticalLine {
+    fn to_line_vec(&self, y_max: f64) -> Vec<(f64, f64)> {
+        vec![(self.x, 0.0), (self.x, y_max)]
+    }
+}
+impl Line {
+    fn to_line_vec(&self) -> Vec<(f64, f64)> {
+        vec![(self.start.x, self.start.y), (self.end.x, self.end.y)]
+    }
+}
+impl<'a> LineCurve<'a> {
+    fn to_points(&self) -> impl Iterator<Item = (f64, f64)> + 'a {
+        (self.xs.iter().copied()).zip(self.ys.iter().copied())
+    }
+}
+impl<'a> FilledCurve<'a> {
+    fn to_points(&self) -> impl Iterator<Item = (f64, f64)> + 'a {
+        (self.xs.iter().copied()).zip(self.ys_1.iter().copied())
+    }
+}
+impl<'a> Points<'a> {
+    fn to_points(&self) -> impl Iterator<Item = (f64, f64)> + 'a {
+        (self.xs.iter().copied()).zip(self.ys.iter().copied())
     }
 }
 
@@ -119,9 +144,7 @@ impl Plotter for PlottersBackend {
     }
 
     fn t_test(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let title = ctx.id.as_title();
-        let path = ctx.context.report_path(ctx.id, "change/t-test.svg");
-        t_test::t_test(path.as_path(), title, data.comparison.unwrap(), ctx.size);
+        unimplemented!()
     }
 
     fn wait(&mut self) {}
@@ -168,21 +191,14 @@ impl PlottingBackend for PlottersBackend {
             .unwrap();
 
         chart
-            .draw_series(LineSeries::new(
-                distribution_curve
-                    .xs
-                    .iter()
-                    .copied()
-                    .zip(distribution_curve.ys.iter().copied()),
-                &DARK_BLUE,
-            ))
+            .draw_series(LineSeries::new(distribution_curve.to_points(), &DARK_BLUE))
             .unwrap()
             .label("Bootstrap distribution")
             .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
 
         chart
             .draw_series(AreaSeries::new(
-                (bootstrap_area.xs.iter().copied()).zip(bootstrap_area.ys_1.iter().copied()),
+                bootstrap_area.to_points(),
                 0.0,
                 DARK_BLUE.mix(0.25).filled().stroke_width(3),
             ))
@@ -194,10 +210,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(std::iter::once(PathElement::new(
-                vec![
-                    (point_estimate.start.x, point_estimate.start.y),
-                    (point_estimate.end.x, point_estimate.end.y),
-                ],
+                point_estimate.to_line_vec(),
                 DARK_BLUE.filled().stroke_width(3),
             )))
             .unwrap()
@@ -252,18 +265,14 @@ impl PlottingBackend for PlottersBackend {
             .unwrap();
 
         chart
-            .draw_series(LineSeries::new(
-                (distribution_curve.xs.iter().copied()).zip(distribution_curve.ys.iter().copied()),
-                &DARK_BLUE,
-            ))
+            .draw_series(LineSeries::new(distribution_curve.to_points(), &DARK_BLUE))
             .unwrap()
             .label("Bootstrap distribution")
             .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
 
         chart
             .draw_series(AreaSeries::new(
-                (confidence_interval.xs.iter().copied())
-                    .zip(confidence_interval.ys_1.iter().copied()),
+                confidence_interval.to_points(),
                 0.0,
                 DARK_BLUE.mix(0.25).filled().stroke_width(3),
             ))
@@ -275,10 +284,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(std::iter::once(PathElement::new(
-                vec![
-                    (point_estimate.start.x, point_estimate.start.y),
-                    (point_estimate.end.x, point_estimate.end.y),
-                ],
+                point_estimate.to_line_vec(),
                 DARK_BLUE.filled().stroke_width(3),
             )))
             .unwrap()
@@ -352,8 +358,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(
-                (current_times.xs.iter().copied())
-                    .zip(current_times.ys.iter().copied())
+                (current_times.to_points())
                     .map(|(x, y)| Circle::new((x, y), POINT_SIZE, DARK_BLUE.filled())),
             )
             .unwrap()
@@ -363,8 +368,7 @@ impl PlottingBackend for PlottersBackend {
         if let Some(base_times) = base_times {
             chart
                 .draw_series(
-                    (base_times.xs.iter().copied())
-                        .zip(base_times.ys.iter().copied())
+                    (base_times.to_points())
                         .map(|(x, y)| Circle::new((x, y), POINT_SIZE, DARK_RED.filled())),
                 )
                 .unwrap()
@@ -424,8 +428,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(
-                (sample.xs.iter().copied())
-                    .zip(sample.ys.iter().copied())
+                (sample.to_points())
                     .map(|(x, y)| Circle::new((x, y), POINT_SIZE, DARK_BLUE.filled())),
             )
             .unwrap()
@@ -434,10 +437,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(std::iter::once(PathElement::new(
-                vec![
-                    (regression.start.x, regression.start.y),
-                    (regression.end.x, regression.end.y),
-                ],
+                regression.to_line_vec(),
                 &DARK_BLUE,
             )))
             .unwrap()
@@ -514,14 +514,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(vec![
-                PathElement::new(
-                    vec![
-                        (base_regression.start.x, base_regression.start.y),
-                        (base_regression.end.x, base_regression.end.y),
-                    ],
-                    &DARK_RED,
-                )
-                .into_dyn(),
+                PathElement::new(base_regression.to_line_vec(), &DARK_RED).into_dyn(),
                 Polygon::new(
                     vec![
                         (
@@ -549,14 +542,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(vec![
-                PathElement::new(
-                    vec![
-                        (current_regression.start.x, current_regression.start.y),
-                        (current_regression.end.x, current_regression.end.y),
-                    ],
-                    &DARK_BLUE,
-                )
-                .into_dyn(),
+                PathElement::new(current_regression.to_line_vec(), &DARK_BLUE).into_dyn(),
                 Polygon::new(
                     vec![
                         (
@@ -602,9 +588,10 @@ impl PlottingBackend for PlottersBackend {
         unit: &str,
         y_label: &str,
         y_scale: f64,
+        max_iters: f64,
         pdf: FilledCurve,
-        mean: Line,
-        fences: (Line, Line, Line, Line),
+        mean: VerticalLine,
+        fences: (VerticalLine, VerticalLine, VerticalLine, VerticalLine),
         points: (Points, Points, Points),
     ) {
         let (low_severe, low_mild, high_mild, high_severe) = fences;
@@ -615,7 +602,6 @@ impl PlottingBackend for PlottersBackend {
         let root_area = SVGBackend::new(&path, size.into()).into_drawing_area();
 
         let range = plotters::data::fitting_range(pdf.ys_1.iter());
-        let max_iters = mean.end.y;
 
         let mut chart = ChartBuilder::on(&root_area)
             .margin((5).percent())
@@ -647,7 +633,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_secondary_series(AreaSeries::new(
-                (pdf.xs.iter().copied()).zip(pdf.ys_1.iter().copied()),
+                pdf.to_points(),
                 0.0,
                 DARK_BLUE.mix(0.5).filled(),
             ))
@@ -659,7 +645,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(std::iter::once(PathElement::new(
-                vec![(mean.start.x, mean.start.y), (mean.end.x, mean.end.y)],
+                mean.to_line_vec(max_iters),
                 &DARK_BLUE,
             )))
             .unwrap()
@@ -668,42 +654,17 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(vec![
-                PathElement::new(
-                    vec![
-                        (low_mild.start.x, low_mild.start.y),
-                        (low_mild.end.x, low_mild.end.y),
-                    ],
-                    &DARK_ORANGE,
-                ),
-                PathElement::new(
-                    vec![
-                        (high_mild.start.x, high_mild.start.y),
-                        (high_mild.end.x, high_mild.end.y),
-                    ],
-                    &DARK_ORANGE,
-                ),
-                PathElement::new(
-                    vec![
-                        (low_severe.start.x, low_severe.start.y),
-                        (low_severe.end.x, low_severe.end.y),
-                    ],
-                    &DARK_RED,
-                ),
-                PathElement::new(
-                    vec![
-                        (high_severe.start.x, high_severe.start.y),
-                        (high_severe.end.x, high_severe.end.y),
-                    ],
-                    &DARK_RED,
-                ),
+                PathElement::new(low_mild.to_line_vec(max_iters), &DARK_ORANGE),
+                PathElement::new(high_mild.to_line_vec(max_iters), &DARK_ORANGE),
+                PathElement::new(low_severe.to_line_vec(max_iters), &DARK_RED),
+                PathElement::new(high_severe.to_line_vec(max_iters), &DARK_RED),
             ])
             .unwrap();
 
         let mut draw_data_point_series = |points: Points, color: RGBAColor, name: &str| {
             chart
                 .draw_series(
-                    (points.xs.iter().copied())
-                        .zip(points.ys.iter().copied())
+                    (points.to_points())
                         .map(|(x, y)| Circle::new((x, y), POINT_SIZE, color.filled())),
                 )
                 .unwrap()
@@ -753,7 +714,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(AreaSeries::new(
-                (pdf.xs.iter().copied()).zip(pdf.ys_1.iter().copied()),
+                pdf.to_points(),
                 0.0,
                 DARK_BLUE.mix(0.25).filled(),
             ))
@@ -761,7 +722,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(std::iter::once(PathElement::new(
-                vec![(mean.start.x, mean.start.y), (mean.end.x, mean.end.y)],
+                mean.to_line_vec(),
                 DARK_BLUE.filled().stroke_width(2),
             )))
             .unwrap();
@@ -813,7 +774,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(AreaSeries::new(
-                (base_pdf.xs.iter().copied()).zip(base_pdf.ys_1.iter().copied()),
+                base_pdf.to_points(),
                 y_range.start,
                 DARK_RED.mix(0.5).filled(),
             ))
@@ -825,7 +786,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(AreaSeries::new(
-                (current_pdf.xs.iter().copied()).zip(current_pdf.ys_1.iter().copied()),
+                current_pdf.to_points(),
                 y_range.start,
                 DARK_BLUE.mix(0.5).filled(),
             ))
@@ -837,10 +798,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(std::iter::once(PathElement::new(
-                vec![
-                    (base_mean.start.x, base_mean.start.y),
-                    (base_mean.end.x, base_mean.end.y),
-                ],
+                base_mean.to_line_vec(),
                 DARK_RED.filled().stroke_width(2),
             )))
             .unwrap()
@@ -849,10 +807,7 @@ impl PlottingBackend for PlottersBackend {
 
         chart
             .draw_series(std::iter::once(PathElement::new(
-                vec![
-                    (current_mean.start.x, current_mean.start.y),
-                    (current_mean.end.x, current_mean.end.y),
-                ],
+                current_mean.to_line_vec(),
                 DARK_BLUE.filled().stroke_width(2),
             )))
             .unwrap()
@@ -862,6 +817,64 @@ impl PlottingBackend for PlottersBackend {
         if !is_thumbnail {
             chart.configure_series_labels().draw().unwrap();
         }
+    }
+
+    fn t_test(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        t: VerticalLine,
+        t_distribution: FilledCurve,
+    ) {
+        let x_range = plotters::data::fitting_range(t_distribution.xs.iter());
+        let mut y_range = plotters::data::fitting_range(t_distribution.ys_1.iter());
+        y_range.start = 0.0;
+        y_range.end *= 1.1;
+
+        let root_area = SVGBackend::new(&path, size.unwrap_or(SIZE).into()).into_drawing_area();
+
+        let mut chart = ChartBuilder::on(&root_area)
+            .margin((5).percent())
+            .caption(
+                format!("{}: Welch t test", id.as_title()),
+                (DEFAULT_FONT, 20),
+            )
+            .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
+            .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
+            .build_ranged(x_range, y_range.clone())
+            .unwrap();
+
+        chart
+            .configure_mesh()
+            .disable_mesh()
+            .y_desc("Density")
+            .x_desc("t score")
+            .draw()
+            .unwrap();
+
+        chart
+            .draw_series(AreaSeries::new(
+                t_distribution.to_points(),
+                0.0,
+                &DARK_BLUE.mix(0.25),
+            ))
+            .unwrap()
+            .label("t distribution")
+            .legend(|(x, y)| {
+                Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_BLUE.mix(0.25).filled())
+            });
+
+        chart
+            .draw_series(std::iter::once(PathElement::new(
+                t.to_line_vec(y_range.end),
+                DARK_BLUE.filled().stroke_width(2),
+            )))
+            .unwrap()
+            .label("t statistic")
+            .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
+
+        chart.configure_series_labels().draw().unwrap();
     }
 
     fn wait(&mut self) {
