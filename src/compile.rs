@@ -132,6 +132,8 @@ pub fn compile(debug_build: bool, cargo_args: &[std::ffi::OsString]) -> Result<C
         }
     }
 
+    targets.sort_by(|target1, target2| (target1.name).cmp(&target2.name));
+
     let exit_status = cargo
         .wait()
         .context("Cargo compilation failed in an unexpected way")?;
