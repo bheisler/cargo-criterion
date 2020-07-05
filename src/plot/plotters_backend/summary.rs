@@ -69,7 +69,7 @@ fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
         .draw()
         .unwrap();
 
-    for (id, (name, curve)) in (0..).zip(data.into_iter()) {
+    for (id, (name, curve)) in data.iter().enumerate() {
         let series = chart
             .draw_series(
                 LineSeries::new(
@@ -148,7 +148,7 @@ fn draw_violin_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = 
         .draw()
         .unwrap();
 
-    for (i, (_, curve)) in data.into_iter().enumerate() {
+    for (i, (_, curve)) in data.iter().enumerate() {
         let base = i as f64;
 
         chart

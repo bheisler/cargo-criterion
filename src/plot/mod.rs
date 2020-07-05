@@ -218,6 +218,8 @@ pub struct FilledCurve<'a> {
     ys_2: &'a [f64],
 }
 
+// If the plotting backends aren't enabled, nothing reads some of the fields here.
+#[allow(dead_code)]
 pub struct Rectangle {
     left: f64,
     right: f64,
@@ -553,7 +555,7 @@ impl<B: PlottingBackend> PlotGenerator<B> {
         let unit = formatter.scale_values(max_avg_time, &mut scaled_y);
         let scaled_y = Sample::new(&scaled_y);
 
-        let xs: Vec<f64> = (1..=scaled_y.len()).into_iter().map(|i| i as f64).collect();
+        let xs: Vec<f64> = (1..=scaled_y.len()).map(|i| i as f64).collect();
 
         let points = Points {
             xs: &xs,
@@ -592,14 +594,8 @@ impl<B: PlottingBackend> PlotGenerator<B> {
         let scaled_current_y = Sample::new(scaled_current_y);
         let scaled_base_y = Sample::new(scaled_base_y);
 
-        let current_xs: Vec<f64> = (1..=scaled_current_y.len())
-            .into_iter()
-            .map(|i| i as f64)
-            .collect();
-        let base_xs: Vec<f64> = (1..=scaled_base_y.len())
-            .into_iter()
-            .map(|i| i as f64)
-            .collect();
+        let current_xs: Vec<f64> = (1..=scaled_current_y.len()).map(|i| i as f64).collect();
+        let base_xs: Vec<f64> = (1..=scaled_base_y.len()).map(|i| i as f64).collect();
 
         let current_points = Points {
             xs: &current_xs,

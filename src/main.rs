@@ -20,6 +20,7 @@ extern crate log;
 #[macro_use]
 mod macros_private;
 
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
 #[macro_use]
 mod plot;
 
