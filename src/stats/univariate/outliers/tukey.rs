@@ -207,6 +207,7 @@ where
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 /// Labels used to classify outliers
 pub enum Label {
     /// A "mild" outlier in the "high" spectrum

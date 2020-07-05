@@ -1,26 +1,29 @@
-use super::*;
-use crate::report::ComparisonData;
-use std::path::Path;
+use crate::plot::plotters_backend::{DARK_BLUE, DEFAULT_FONT, SIZE};
+use crate::plot::{FilledCurve, Size, VerticalLine};
+use crate::report::BenchmarkId;
+use plotters::prelude::*;
+use std::path::PathBuf;
 
-pub(crate) fn t_test(
-    path: &Path,
-    title: &str,
-    comparison: &ComparisonData,
-    size: Option<(u32, u32)>,
+pub fn t_test(
+    id: &BenchmarkId,
+    size: Option<Size>,
+    path: PathBuf,
+    t: VerticalLine,
+    t_distribution: FilledCurve,
 ) {
-    let t = comparison.t_value;
-    let (xs, ys) = kde::sweep(&comparison.t_distribution, KDE_POINTS, None);
-
-    let x_range = plotters::data::fitting_range(xs.iter());
-    let mut y_range = plotters::data::fitting_range(ys.iter());
+    let x_range = plotters::data::fitting_range(t_distribution.xs.iter());
+    let mut y_range = plotters::data::fitting_range(t_distribution.ys_1.iter());
     y_range.start = 0.0;
     y_range.end *= 1.1;
 
-    let root_area = SVGBackend::new(&path, size.unwrap_or(SIZE)).into_drawing_area();
+    let root_area = SVGBackend::new(&path, size.unwrap_or(SIZE).into()).into_drawing_area();
 
     let mut chart = ChartBuilder::on(&root_area)
         .margin((5).percent())
-        .caption(format!("{}: Welch t test", title), (DEFAULT_FONT, 20))
+        .caption(
+            format!("{}: Welch t test", id.as_title()),
+            (DEFAULT_FONT, 20),
+        )
         .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
         .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
         .build_ranged(x_range, y_range.clone())
@@ -36,7 +39,7 @@ pub(crate) fn t_test(
 
     chart
         .draw_series(AreaSeries::new(
-            xs.iter().zip(ys.iter()).map(|(x, y)| (*x, *y)),
+            t_distribution.to_points(),
             0.0,
             &DARK_BLUE.mix(0.25),
         ))
@@ -48,7 +51,7 @@ pub(crate) fn t_test(
 
     chart
         .draw_series(std::iter::once(PathElement::new(
-            vec![(t, 0.0), (t, y_range.end)],
+            t.to_line_vec(y_range.end),
             DARK_BLUE.filled().stroke_width(2),
         )))
         .unwrap()

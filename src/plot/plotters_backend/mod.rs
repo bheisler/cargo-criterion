@@ -1,21 +1,12 @@
-use super::{PlotContext, PlotData, Plotter};
-use crate::kde;
-use crate::model::Benchmark;
-use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ValueType};
-use crate::stats::bivariate::Data;
-use crate::stats::univariate::Sample;
-use crate::value_formatter::ValueFormatter;
-use plotters::data::float::pretty_print_float;
+use crate::connection::AxisScale;
+use crate::estimate::Statistic;
+use crate::plot::{
+    FilledCurve, Line, LineCurve, PlottingBackend, Points, Rectangle as RectangleArea, Size,
+    VerticalLine,
+};
+use crate::report::{BenchmarkId, ValueType};
 use plotters::prelude::*;
-
-static DEFAULT_FONT: FontFamily = FontFamily::SansSerif;
-static KDE_POINTS: usize = 500;
-static SIZE: (u32, u32) = (960, 540);
-static POINT_SIZE: u32 = 3;
-
-const DARK_BLUE: RGBColor = RGBColor(31, 120, 180);
-const DARK_ORANGE: RGBColor = RGBColor(255, 127, 0);
-const DARK_RED: RGBColor = RGBColor(227, 26, 28);
+use std::path::PathBuf;
 
 mod distributions;
 mod iteration_times;
@@ -24,208 +15,274 @@ mod regression;
 mod summary;
 mod t_test;
 
-fn convert_size(size: Option<(usize, usize)>) -> Option<(u32, u32)> {
-    if let Some((w, h)) = size {
-        return Some((w as u32, h as u32));
+static DEFAULT_FONT: FontFamily = FontFamily::SansSerif;
+static SIZE: Size = Size(960, 540);
+static POINT_SIZE: u32 = 3;
+
+const DARK_BLUE: RGBColor = RGBColor(31, 120, 180);
+const DARK_ORANGE: RGBColor = RGBColor(255, 127, 0);
+const DARK_RED: RGBColor = RGBColor(227, 26, 28);
+
+const NUM_COLORS: usize = 8;
+static COMPARISON_COLORS: [RGBColor; NUM_COLORS] = [
+    RGBColor(178, 34, 34),
+    RGBColor(46, 139, 87),
+    RGBColor(0, 139, 139),
+    RGBColor(255, 215, 0),
+    RGBColor(0, 0, 139),
+    RGBColor(220, 20, 60),
+    RGBColor(139, 0, 139),
+    RGBColor(0, 255, 127),
+];
+
+impl From<Size> for (u32, u32) {
+    fn from(other: Size) -> Self {
+        let Size(width, height) = other;
+        (width as u32, height as u32)
     }
-    None
 }
+
+impl VerticalLine {
+    fn to_line_vec(&self, y_max: f64) -> Vec<(f64, f64)> {
+        vec![(self.x, 0.0), (self.x, y_max)]
+    }
+}
+impl Line {
+    fn to_line_vec(&self) -> Vec<(f64, f64)> {
+        vec![(self.start.x, self.start.y), (self.end.x, self.end.y)]
+    }
+}
+impl<'a> LineCurve<'a> {
+    fn to_points(&self) -> impl Iterator<Item = (f64, f64)> + 'a {
+        (self.xs.iter().copied()).zip(self.ys.iter().copied())
+    }
+}
+impl<'a> FilledCurve<'a> {
+    fn to_points(&self) -> impl Iterator<Item = (f64, f64)> + 'a {
+        (self.xs.iter().copied()).zip(self.ys_1.iter().copied())
+    }
+}
+impl<'a> Points<'a> {
+    fn to_points(&self) -> impl Iterator<Item = (f64, f64)> + 'a {
+        (self.xs.iter().copied()).zip(self.ys.iter().copied())
+    }
+}
+
 #[derive(Default)]
 pub struct PlottersBackend;
+impl PlottingBackend for PlottersBackend {
+    fn abs_distribution(
+        &mut self,
+        id: &BenchmarkId,
+        statistic: Statistic,
+        size: Option<Size>,
+        path: PathBuf,
 
-#[allow(unused_variables)]
-impl Plotter for PlottersBackend {
-    fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        if let Some(cmp) = data.comparison {
-            let (path, title) = if ctx.is_thumbnail {
-                (
-                    ctx.context.report_path(ctx.id, "relative_pdf_small.svg"),
-                    None,
-                )
-            } else {
-                (
-                    ctx.context.report_path(ctx.id, "both/pdf.svg"),
-                    Some(ctx.id.as_title()),
-                )
-            };
-            pdf::pdf_comparison_figure(
-                path.as_ref(),
-                title,
-                data.formatter,
-                data.measurements,
-                cmp,
-                convert_size(ctx.size),
-            );
-            return;
-        }
-        if ctx.is_thumbnail {
-            pdf::pdf_small(
-                ctx.id,
-                ctx.context,
-                data.formatter,
-                data.measurements,
-                convert_size(ctx.size),
-            );
-        } else {
-            pdf::pdf(
-                ctx.id,
-                ctx.context,
-                data.formatter,
-                data.measurements,
-                convert_size(ctx.size),
-            );
-        }
+        x_unit: &str,
+        distribution_curve: LineCurve,
+        bootstrap_area: FilledCurve,
+        point_estimate: Line,
+    ) {
+        distributions::abs_distribution(
+            id,
+            statistic,
+            size,
+            path,
+            x_unit,
+            distribution_curve,
+            bootstrap_area,
+            point_estimate,
+        )
     }
 
-    fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let (title, path) = match (data.comparison.is_some(), ctx.is_thumbnail) {
-            (true, true) => (
-                None,
-                ctx.context
-                    .report_path(ctx.id, "relative_regression_small.svg"),
-            ),
-            (true, false) => (
-                Some(ctx.id.as_title()),
-                ctx.context.report_path(ctx.id, "both/regression.svg"),
-            ),
-            (false, true) => (
-                None,
-                ctx.context.report_path(ctx.id, "regression_small.svg"),
-            ),
-            (false, false) => (
-                Some(ctx.id.as_title()),
-                ctx.context.report_path(ctx.id, "regression.svg"),
-            ),
-        };
+    fn rel_distribution(
+        &mut self,
+        id: &BenchmarkId,
+        statistic: Statistic,
+        size: Option<Size>,
+        path: PathBuf,
 
-        if let Some(cmp) = data.comparison {
-            let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-            regression::regression_comparison_figure(
-                title,
-                path.as_path(),
-                data.formatter,
-                data.measurements,
-                cmp,
-                &base_data,
-                convert_size(ctx.size),
-            );
-        } else {
-            regression::regression_figure(
-                title,
-                path.as_path(),
-                data.formatter,
-                data.measurements,
-                convert_size(ctx.size),
-            );
-        }
+        distribution_curve: LineCurve,
+        confidence_interval: FilledCurve,
+        point_estimate: Line,
+        noise_threshold: RectangleArea,
+    ) {
+        distributions::rel_distribution(
+            id,
+            statistic,
+            size,
+            path,
+            distribution_curve,
+            confidence_interval,
+            point_estimate,
+            noise_threshold,
+        )
     }
 
-    fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let (title, path) = match (data.comparison.is_some(), ctx.is_thumbnail) {
-            (true, true) => (
-                None,
-                ctx.context
-                    .report_path(ctx.id, "relative_iteration_times_small.svg"),
-            ),
-            (true, false) => (
-                Some(ctx.id.as_title()),
-                ctx.context.report_path(ctx.id, "both/iteration_times.svg"),
-            ),
-            (false, true) => (
-                None,
-                ctx.context.report_path(ctx.id, "iteration_times_small.svg"),
-            ),
-            (false, false) => (
-                Some(ctx.id.as_title()),
-                ctx.context.report_path(ctx.id, "iteration_times.svg"),
-            ),
-        };
-
-        if let Some(cmp) = data.comparison {
-            let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-            iteration_times::iteration_times_comparison_figure(
-                title,
-                path.as_path(),
-                data.formatter,
-                data.measurements,
-                cmp,
-                convert_size(ctx.size),
-            );
-        } else {
-            iteration_times::iteration_times_figure(
-                title,
-                path.as_path(),
-                data.formatter,
-                data.measurements,
-                convert_size(ctx.size),
-            );
-        }
+    fn iteration_times(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        unit: &str,
+        is_thumbnail: bool,
+        current_times: Points,
+        base_times: Option<Points>,
+    ) {
+        iteration_times::iteration_times(
+            id,
+            size,
+            path,
+            unit,
+            is_thumbnail,
+            current_times,
+            base_times,
+        )
     }
 
-    fn abs_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        distributions::abs_distributions(
-            ctx.id,
-            ctx.context,
-            data.formatter,
-            data.measurements,
-            convert_size(ctx.size),
+    fn regression(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        is_thumbnail: bool,
+        x_label: &str,
+        x_scale: f64,
+        unit: &str,
+        sample: Points,
+        regression: Line,
+        confidence_interval: FilledCurve,
+    ) {
+        regression::regression(
+            id,
+            size,
+            path,
+            is_thumbnail,
+            x_label,
+            x_scale,
+            unit,
+            sample,
+            regression,
+            confidence_interval,
         );
     }
 
-    fn rel_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        distributions::rel_distributions(
-            ctx.id,
-            ctx.context,
-            data.measurements,
-            data.comparison.unwrap(),
-            convert_size(ctx.size),
+    fn regression_comparison(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        is_thumbnail: bool,
+        x_label: &str,
+        x_scale: f64,
+        unit: &str,
+        current_regression: Line,
+        current_confidence_interval: FilledCurve,
+        base_regression: Line,
+        base_confidence_interval: FilledCurve,
+    ) {
+        regression::regression_comparison(
+            id,
+            size,
+            path,
+            is_thumbnail,
+            x_label,
+            x_scale,
+            unit,
+            current_regression,
+            current_confidence_interval,
+            base_regression,
+            base_confidence_interval,
         );
+    }
+
+    fn pdf_full(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        unit: &str,
+        y_label: &str,
+        y_scale: f64,
+        max_iters: f64,
+        pdf: FilledCurve,
+        mean: VerticalLine,
+        fences: (VerticalLine, VerticalLine, VerticalLine, VerticalLine),
+        points: (Points, Points, Points),
+    ) {
+        pdf::pdf_full(
+            id, size, path, unit, y_label, y_scale, max_iters, pdf, mean, fences, points,
+        );
+    }
+
+    fn pdf_thumbnail(
+        &mut self,
+        size: Option<Size>,
+        path: PathBuf,
+        unit: &str,
+        mean: Line,
+        pdf: FilledCurve,
+    ) {
+        pdf::pdf_thumbnail(size, path, unit, mean, pdf);
+    }
+
+    fn pdf_comparison(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        is_thumbnail: bool,
+        unit: &str,
+        current_mean: Line,
+        current_pdf: FilledCurve,
+        base_mean: Line,
+        base_pdf: FilledCurve,
+    ) {
+        pdf::pdf_comparison(
+            id,
+            size,
+            path,
+            is_thumbnail,
+            unit,
+            current_mean,
+            current_pdf,
+            base_mean,
+            base_pdf,
+        );
+    }
+
+    fn t_test(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        t: VerticalLine,
+        t_distribution: FilledCurve,
+    ) {
+        t_test::t_test(id, size, path, t, t_distribution);
     }
 
     fn line_comparison(
         &mut self,
-        ctx: PlotContext<'_>,
-        formatter: &dyn ValueFormatter,
-        all_benchmarks: &[(&BenchmarkId, &Benchmark)],
+        path: PathBuf,
+        title: &str,
+        unit: &str,
         value_type: ValueType,
+        axis_scale: AxisScale,
+        lines: &[(Option<&String>, LineCurve)],
     ) {
-        let path = ctx.line_comparison_path();
-        summary::line_comparison(
-            formatter,
-            ctx.id.as_title(),
-            all_benchmarks,
-            &path,
-            value_type,
-            ctx.context.plot_config.summary_scale,
-        );
+        summary::line_comparison(path, title, unit, value_type, axis_scale, lines);
     }
 
     fn violin(
         &mut self,
-        ctx: PlotContext<'_>,
-        formatter: &dyn ValueFormatter,
-        all_benchmarks: &[(&BenchmarkId, &Benchmark)],
+        path: PathBuf,
+        title: &str,
+        unit: &str,
+        axis_scale: AxisScale,
+        lines: &[(&str, LineCurve)],
     ) {
-        let violin_path = ctx.violin_path();
-
-        summary::violin(
-            formatter,
-            ctx.id.as_title(),
-            all_benchmarks,
-            &violin_path,
-            ctx.context.plot_config.summary_scale,
-        );
-    }
-
-    fn t_test(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let title = ctx.id.as_title();
-        let path = ctx.context.report_path(ctx.id, "change/t-test.svg");
-        t_test::t_test(
-            path.as_path(),
-            title,
-            data.comparison.unwrap(),
-            convert_size(ctx.size),
-        );
+        summary::violin(path, title, unit, axis_scale, lines);
     }
 
     fn wait(&mut self) {}

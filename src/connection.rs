@@ -190,6 +190,7 @@ pub enum IncomingMessage {
     },
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub enum OutgoingMessage<'a> {
     FormatValue {

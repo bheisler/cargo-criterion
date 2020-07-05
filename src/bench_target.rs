@@ -153,8 +153,7 @@ impl BenchTarget {
                 IncomingMessage::FinishedBenchmarkGroup { group } => {
                     let benchmark_group = model.add_benchmark_group(&self.name, &group);
                     {
-                        let formatter =
-                            crate::value_formatter::ConnectionValueFormatter::new(&mut conn);
+                        let formatter = crate::value_formatter::ValueFormatter::new(&mut conn);
                         report.summarize(&context, &group, benchmark_group, &formatter);
                         if any_from_group_executed {
                             report.group_separator();
@@ -277,7 +276,7 @@ impl BenchTarget {
                     }
 
                     {
-                        let formatter = crate::value_formatter::ConnectionValueFormatter::new(conn);
+                        let formatter = crate::value_formatter::ValueFormatter::new(conn);
                         report.measurement_complete(&id, &context, &measured_data, &formatter);
                     }
                     return Ok(());

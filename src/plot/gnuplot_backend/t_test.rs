@@ -1,27 +1,19 @@
-use std::iter;
-use std::process::Child;
-
+use crate::plot::gnuplot_backend::{gnuplot_escape, DARK_BLUE, DEFAULT_FONT, LINEWIDTH, SIZE};
+use crate::plot::Size;
+use crate::plot::{FilledCurve as FilledArea, VerticalLine};
+use crate::report::BenchmarkId;
 use criterion_plot::prelude::*;
 
-use super::*;
-use crate::kde;
-use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
-
-pub(crate) fn t_test(
+pub fn t_test(
     id: &BenchmarkId,
-    context: &ReportContext,
-    _measurements: &MeasurementData<'_>,
-    comparison: &ComparisonData,
     size: Option<Size>,
-) -> Child {
-    let t = comparison.t_value;
-    let (xs, ys) = kde::sweep(&comparison.t_distribution, KDE_POINTS, None);
-    let zero = iter::repeat(0);
-
+    t: VerticalLine,
+    t_distribution: FilledArea,
+) -> Figure {
     let mut figure = Figure::new();
     figure
         .set(Font(DEFAULT_FONT))
-        .set(size.unwrap_or(SIZE))
+        .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
         .set(Title(format!(
             "{}: Welch t test",
             gnuplot_escape(id.as_title())
@@ -35,9 +27,9 @@ pub(crate) fn t_test(
         })
         .plot(
             FilledCurve {
-                x: &*xs,
-                y1: &*ys,
-                y2: zero,
+                x: t_distribution.xs,
+                y1: t_distribution.ys_1,
+                y2: t_distribution.ys_2,
             },
             |c| {
                 c.set(DARK_BLUE)
@@ -45,21 +37,13 @@ pub(crate) fn t_test(
                     .set(Opacity(0.25))
             },
         )
-        .plot(
-            Lines {
-                x: &[t, t],
-                y: &[0, 1],
-            },
-            |c| {
-                c.set(Axes::BottomXRightY)
-                    .set(DARK_BLUE)
-                    .set(LINEWIDTH)
-                    .set(Label("t statistic"))
-                    .set(LineType::Solid)
-            },
-        );
+        .plot(to_lines!(t, 1.0), |c| {
+            c.set(Axes::BottomXRightY)
+                .set(DARK_BLUE)
+                .set(LINEWIDTH)
+                .set(Label("t statistic"))
+                .set(LineType::Solid)
+        });
 
-    let path = context.report_path(id, "change/t-test.svg");
-    debug_script(&path, &figure);
-    figure.set(Output(path)).draw().unwrap()
+    figure
 }

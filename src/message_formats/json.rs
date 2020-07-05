@@ -22,10 +22,7 @@ struct ConfidenceInterval {
     unit: String,
 }
 impl ConfidenceInterval {
-    fn from_estimate(
-        estimate: &Estimate,
-        value_formatter: &dyn ValueFormatter,
-    ) -> ConfidenceInterval {
+    fn from_estimate(estimate: &Estimate, value_formatter: &ValueFormatter) -> ConfidenceInterval {
         let mut array = [
             estimate.point_estimate,
             estimate.confidence_interval.lower_bound,
@@ -146,7 +143,7 @@ impl Report for JsonMessageReport {
         id: &BenchmarkId,
         context: &ReportContext,
         measurements: &MeasurementData<'_>,
-        formatter: &dyn ValueFormatter,
+        formatter: &ValueFormatter,
     ) {
         let mut measured_values = measurements.sample_times().to_vec();
         let unit = formatter.scale_for_machines(&mut measured_values);
@@ -224,7 +221,7 @@ impl Report for JsonMessageReport {
         context: &ReportContext,
         group_id: &str,
         benchmark_group: &BenchmarkGroup,
-        _formatter: &dyn ValueFormatter,
+        _formatter: &ValueFormatter,
     ) {
         let message = BenchmarkGroupComplete {
             group_name: group_id.to_owned(),

@@ -1,31 +1,18 @@
 use crate::connection::{Connection, IncomingMessage, OutgoingMessage, Throughput};
 use std::cell::RefCell;
 
-pub trait ValueFormatter {
-    fn format_value(&self, value: f64) -> String;
-    fn format_throughput(&self, throughput: &Throughput, value: f64) -> String;
-    fn scale_values(&self, typical_value: f64, values: &mut [f64]) -> String;
-    fn scale_throughputs(
-        &self,
-        typical_value: f64,
-        throughput: &Throughput,
-        values: &mut [f64],
-    ) -> String;
-    fn scale_for_machines(&self, values: &mut [f64]) -> String;
-}
-
-pub struct ConnectionValueFormatter<'a> {
+pub struct ValueFormatter<'a> {
     connection: RefCell<&'a mut Connection>,
 }
-impl<'a> ConnectionValueFormatter<'a> {
-    pub fn new(conn: &mut Connection) -> ConnectionValueFormatter {
-        ConnectionValueFormatter {
+impl<'a> ValueFormatter<'a> {
+    pub fn new(conn: &mut Connection) -> ValueFormatter {
+        ValueFormatter {
             connection: RefCell::new(conn),
         }
     }
 }
-impl<'a> ValueFormatter for ConnectionValueFormatter<'a> {
-    fn format_value(&self, value: f64) -> String {
+impl<'a> ValueFormatter<'a> {
+    pub fn format_value(&self, value: f64) -> String {
         self.connection
             .borrow_mut()
             .send(&OutgoingMessage::FormatValue { value })
@@ -36,7 +23,7 @@ impl<'a> ValueFormatter for ConnectionValueFormatter<'a> {
         }
     }
 
-    fn format_throughput(&self, throughput: &Throughput, value: f64) -> String {
+    pub fn format_throughput(&self, throughput: &Throughput, value: f64) -> String {
         self.connection
             .borrow_mut()
             .send(&OutgoingMessage::FormatThroughput {
@@ -50,7 +37,7 @@ impl<'a> ValueFormatter for ConnectionValueFormatter<'a> {
         }
     }
 
-    fn scale_values(&self, typical_value: f64, values: &mut [f64]) -> String {
+    pub fn scale_values(&self, typical_value: f64, values: &mut [f64]) -> String {
         self.connection
             .borrow_mut()
             .send(&OutgoingMessage::ScaleValues {
@@ -70,7 +57,9 @@ impl<'a> ValueFormatter for ConnectionValueFormatter<'a> {
         }
     }
 
-    fn scale_throughputs(
+    // This will be needed when we add the throughput plots.
+    #[allow(dead_code)]
+    pub fn scale_throughputs(
         &self,
         typical_value: f64,
         throughput: &Throughput,
@@ -96,7 +85,7 @@ impl<'a> ValueFormatter for ConnectionValueFormatter<'a> {
         }
     }
 
-    fn scale_for_machines(&self, values: &mut [f64]) -> String {
+    pub fn scale_for_machines(&self, values: &mut [f64]) -> String {
         self.connection
             .borrow_mut()
             .send(&OutgoingMessage::ScaleForMachines { values })
@@ -113,7 +102,7 @@ impl<'a> ValueFormatter for ConnectionValueFormatter<'a> {
         }
     }
 }
-impl<'a> Drop for ConnectionValueFormatter<'a> {
+impl<'a> Drop for ValueFormatter<'a> {
     fn drop(&mut self) {
         let _ = self
             .connection

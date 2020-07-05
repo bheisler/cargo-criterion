@@ -1,45 +1,33 @@
-use super::*;
 use crate::connection::AxisScale;
-use crate::model::Benchmark;
-use linked_hash_map::LinkedHashMap;
+use crate::plot::plotters_backend::{
+    COMPARISON_COLORS, DARK_BLUE, DEFAULT_FONT, NUM_COLORS, POINT_SIZE, SIZE,
+};
+use crate::plot::LineCurve;
+use crate::report::ValueType;
 use plotters::coord::{AsRangedCoord, Shift};
-use std::cmp::Ordering;
-use std::path::Path;
-
-const NUM_COLORS: usize = 8;
-static COMPARISON_COLORS: [RGBColor; NUM_COLORS] = [
-    RGBColor(178, 34, 34),
-    RGBColor(46, 139, 87),
-    RGBColor(0, 139, 139),
-    RGBColor(255, 215, 0),
-    RGBColor(0, 0, 139),
-    RGBColor(220, 20, 60),
-    RGBColor(139, 0, 139),
-    RGBColor(0, 255, 127),
-];
+use plotters::prelude::*;
+use std::path::PathBuf;
 
 pub fn line_comparison(
-    formatter: &dyn ValueFormatter,
+    path: PathBuf,
     title: &str,
-    all_curves: &[(&BenchmarkId, &Benchmark)],
-    path: &Path,
+    unit: &str,
     value_type: ValueType,
     axis_scale: AxisScale,
+    lines: &[(Option<&String>, LineCurve)],
 ) {
-    let (unit, series_data) = line_comparison_series_data(formatter, all_curves);
-
     let x_range =
-        plotters::data::fitting_range(series_data.iter().map(|(_, xs, _)| xs.iter()).flatten());
+        plotters::data::fitting_range(lines.iter().flat_map(|(_, curve)| curve.xs.iter()));
     let y_range =
-        plotters::data::fitting_range(series_data.iter().map(|(_, _, ys)| ys.iter()).flatten());
-    let root_area = SVGBackend::new(&path, SIZE)
+        plotters::data::fitting_range(lines.iter().flat_map(|(_, curve)| curve.ys.iter()));
+    let root_area = SVGBackend::new(&path, SIZE.into())
         .into_drawing_area()
         .titled(&format!("{}: Comparison", title), (DEFAULT_FONT, 20))
         .unwrap();
 
     match axis_scale {
         AxisScale::Linear => {
-            draw_line_comparison_figure(root_area, &unit, x_range, y_range, value_type, series_data)
+            draw_line_comparison_figure(root_area, &unit, x_range, y_range, value_type, lines)
         }
         AxisScale::Logarithmic => draw_line_comparison_figure(
             root_area,
@@ -47,7 +35,7 @@ pub fn line_comparison(
             LogRange(x_range),
             LogRange(y_range),
             value_type,
-            series_data,
+            lines,
         ),
     }
 }
@@ -58,7 +46,7 @@ fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
     x_range: XR,
     y_range: YR,
     value_type: ValueType,
-    data: Vec<(Option<&String>, Vec<f64>, Vec<f64>)>,
+    data: &[(Option<&String>, LineCurve)],
 ) {
     let input_suffix = match value_type {
         ValueType::Bytes => " Size (Bytes)",
@@ -81,11 +69,11 @@ fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
         .draw()
         .unwrap();
 
-    for (id, (name, xs, ys)) in (0..).zip(data.into_iter()) {
+    for (id, (name, curve)) in (0..).zip(data.into_iter()) {
         let series = chart
             .draw_series(
                 LineSeries::new(
-                    xs.into_iter().zip(ys.into_iter()),
+                    curve.to_points(),
                     COMPARISON_COLORS[id % NUM_COLORS].filled(),
                 )
                 .point_size(POINT_SIZE),
@@ -109,99 +97,18 @@ fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
         .unwrap();
 }
 
-#[allow(clippy::type_complexity)]
-fn line_comparison_series_data<'a>(
-    formatter: &dyn ValueFormatter,
-    all_benchmarks: &[(&'a BenchmarkId, &'a Benchmark)],
-) -> (String, Vec<(Option<&'a String>, Vec<f64>, Vec<f64>)>) {
-    let max = all_benchmarks
-        .iter()
-        .map(|(_, bench)| bench.latest_stats.estimates.typical().point_estimate)
-        .fold(::std::f64::NAN, f64::max);
-
-    let mut dummy = [1.0];
-    let unit = formatter.scale_values(max, &mut dummy);
-
-    let mut series_data = vec![];
-
-    let mut function_id_to_benchmarks = LinkedHashMap::new();
-    for (id, bench) in all_benchmarks {
-        function_id_to_benchmarks
-            .entry(&id.function_id)
-            .or_insert(Vec::new())
-            .push((*id, *bench))
-    }
-
-    for (key, group) in function_id_to_benchmarks {
-        // Unwrap is fine here because the caller shouldn't call this with non-numeric IDs.
-        let mut tuples: Vec<_> = group
-            .into_iter()
-            .map(|(id, bench)| {
-                let x = id.as_number().unwrap();
-                let y = bench.latest_stats.estimates.typical().point_estimate;
-
-                (x, y)
-            })
-            .collect();
-        tuples.sort_by(|&(ax, _), &(bx, _)| (ax.partial_cmp(&bx).unwrap_or(Ordering::Less)));
-        let function_name = key.as_ref();
-        let (xs, mut ys): (Vec<_>, Vec<_>) = tuples.into_iter().unzip();
-        formatter.scale_values(max, &mut ys);
-        series_data.push((function_name, xs, ys));
-    }
-    (unit, series_data)
-}
-
 pub fn violin(
-    formatter: &dyn ValueFormatter,
+    path: PathBuf,
     title: &str,
-    all_benchmarks: &[(&BenchmarkId, &Benchmark)],
-    path: &Path,
+    unit: &str,
     axis_scale: AxisScale,
+    lines: &[(&str, LineCurve)],
 ) {
-    let mut kdes = all_benchmarks
-        .iter()
-        .rev()
-        .map(|(id, sample)| {
-            let (x, mut y) = kde::sweep(
-                Sample::new(&sample.latest_stats.avg_values),
-                KDE_POINTS,
-                None,
-            );
-            let y_max = Sample::new(&y).max();
-            for y in y.iter_mut() {
-                *y /= y_max;
-            }
+    let x_range =
+        plotters::data::fitting_range(lines.iter().flat_map(|(_, curve)| curve.xs.iter()));
+    let y_range = -0.5..lines.len() as f64 - 0.5;
 
-            (id.as_title(), x, y)
-        })
-        .collect::<Vec<_>>();
-
-    let mut xs = kdes
-        .iter()
-        .flat_map(|&(_, ref x, _)| x.iter())
-        .filter(|&&x| x > 0.);
-    let (mut min, mut max) = {
-        let &first = xs.next().unwrap();
-        (first, first)
-    };
-    for &e in xs {
-        if e < min {
-            min = e;
-        } else if e > max {
-            max = e;
-        }
-    }
-    let mut dummy = [1.0];
-    let unit = formatter.scale_values(max, &mut dummy);
-    kdes.iter_mut().for_each(|&mut (_, ref mut xs, _)| {
-        formatter.scale_values(max, xs);
-    });
-
-    let x_range = plotters::data::fitting_range(kdes.iter().map(|(_, xs, _)| xs.iter()).flatten());
-    let y_range = -0.5..all_benchmarks.len() as f64 - 0.5;
-
-    let size = (960, 150 + (18 * all_benchmarks.len() as u32));
+    let size = (960, 150 + (18 * lines.len() as u32));
 
     let root_area = SVGBackend::new(&path, size)
         .into_drawing_area()
@@ -209,20 +116,19 @@ pub fn violin(
         .unwrap();
 
     match axis_scale {
-        AxisScale::Linear => draw_violin_figure(root_area, &unit, x_range, y_range, kdes),
+        AxisScale::Linear => draw_violin_figure(root_area, &unit, x_range, y_range, lines),
         AxisScale::Logarithmic => {
-            draw_violin_figure(root_area, &unit, LogRange(x_range), y_range, kdes)
+            draw_violin_figure(root_area, &unit, LogRange(x_range), y_range, lines)
         }
     }
 }
 
-#[allow(clippy::type_complexity)]
 fn draw_violin_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = f64>>(
     root_area: DrawingArea<SVGBackend, Shift>,
     unit: &str,
     x_range: XR,
     y_range: YR,
-    data: Vec<(&str, Box<[f64]>, Box<[f64]>)>,
+    data: &[(&str, LineCurve)],
 ) {
     let mut chart = ChartBuilder::on(&root_area)
         .margin((5).percent())
@@ -242,12 +148,12 @@ fn draw_violin_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = 
         .draw()
         .unwrap();
 
-    for (i, (_, x, y)) in data.into_iter().enumerate() {
+    for (i, (_, curve)) in data.into_iter().enumerate() {
         let base = i as f64;
 
         chart
             .draw_series(AreaSeries::new(
-                x.iter().zip(y.iter()).map(|(x, y)| (*x, base + *y / 2.0)),
+                curve.to_points().map(|(x, y)| (x, base + y / 2.0)),
                 base,
                 &DARK_BLUE.mix(0.25),
             ))
@@ -255,7 +161,7 @@ fn draw_violin_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = 
 
         chart
             .draw_series(AreaSeries::new(
-                x.iter().zip(y.iter()).map(|(x, y)| (*x, base - *y / 2.0)),
+                curve.to_points().map(|(x, y)| (x, base - y / 2.0)),
                 base,
                 &DARK_BLUE.mix(0.25),
             ))
