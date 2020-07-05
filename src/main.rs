@@ -20,6 +20,9 @@ extern crate log;
 #[macro_use]
 mod macros_private;
 
+#[macro_use]
+mod plot;
+
 mod analysis;
 mod bench_target;
 mod compile;
@@ -31,7 +34,6 @@ mod html;
 mod kde;
 mod message_formats;
 mod model;
-mod plot;
 mod report;
 mod stats;
 mod value_formatter;
