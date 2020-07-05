@@ -1,6 +1,6 @@
 use criterion_plot::prelude::*;
 use std::iter;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Child;
 mod iteration_times;
 mod pdf;
@@ -13,7 +13,6 @@ use self::summary::*;
 use self::t_test::*;
 use super::{
     FilledCurve as FilledArea, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend,
-    ReportContext,
 };
 use crate::estimate::Statistic;
 use crate::format;
@@ -39,12 +38,11 @@ const DARK_BLUE: Color = Color::Rgb(31, 120, 180);
 const DARK_ORANGE: Color = Color::Rgb(255, 127, 0);
 const DARK_RED: Color = Color::Rgb(227, 26, 28);
 
-fn debug_script(path: &PathBuf, figure: &Figure) {
+fn debug_script(path: &Path, figure: &Figure) {
     if crate::debug_enabled() {
-        let mut script_path = path.clone();
-        script_path.set_extension("gnuplot");
+        let script_path = path.with_extension("gnuplot");
         info!("Writing gnuplot script to {:?}", script_path);
-        let result = figure.save(script_path.as_path());
+        let result = figure.save(&script_path);
         if let Err(e) = result {
             error!("Failed to write debug output: {}", e);
         }
@@ -86,127 +84,133 @@ impl Gnuplot {
 
 impl Plotter for Gnuplot {
     fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(if ctx.is_thumbnail {
-            if let Some(cmp) = data.comparison {
-                pdf_comparison_small(
-                    ctx.id,
-                    ctx.context,
-                    data.formatter,
-                    data.measurements,
-                    cmp,
-                    ctx.size,
-                )
-            } else {
-                pdf_small(
-                    ctx.id,
-                    ctx.context,
-                    data.formatter,
-                    data.measurements,
-                    ctx.size,
-                )
-            }
-        } else if let Some(cmp) = data.comparison {
-            pdf_comparison(
-                ctx.id,
-                ctx.context,
-                data.formatter,
-                data.measurements,
-                cmp,
-                ctx.size,
-            )
-        } else {
-            pdf(
-                ctx.id,
-                ctx.context,
-                data.formatter,
-                data.measurements,
-                ctx.size,
-            )
-        });
+        self.process_list.push(pdf(
+            ctx.id,
+            data.formatter,
+            data.measurements,
+            ctx.size,
+            ctx.context.report_path(ctx.id, "pdf.svg"),
+        ));
+    }
+    fn pdf_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.process_list.push(pdf_small(
+            data.formatter,
+            data.measurements,
+            ctx.size,
+            ctx.context.report_path(ctx.id, "pdf_small.svg"),
+        ));
+    }
+    fn pdf_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.process_list.push(pdf_comparison(
+            ctx.id,
+            data.formatter,
+            data.measurements,
+            data.comparison
+                .expect("Shouldn't call a comparison method without comparison data"),
+            ctx.size,
+            ctx.context.report_path(ctx.id, "both/pdf.svg"),
+        ));
+    }
+    fn pdf_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.process_list.push(pdf_comparison_small(
+            data.formatter,
+            data.measurements,
+            data.comparison
+                .expect("Shouldn't call a comparison method without comparison data"),
+            ctx.size,
+            ctx.context.report_path(ctx.id, "relative_pdf_small.svg"),
+        ));
+    }
+
+    fn iteration_times_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.process_list.push(iteration_times_comparison(
+            ctx.id,
+            data.formatter,
+            data.measurements,
+            data.comparison
+                .expect("Shouldn't call comparison method without comparison data."),
+            ctx.size,
+            ctx.context.report_path(ctx.id, "both/iteration_times.svg"),
+        ));
+    }
+
+    fn iteration_times_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.process_list.push(iteration_times_comparison_small(
+            data.formatter,
+            data.measurements,
+            data.comparison
+                .expect("Shouldn't call comparison method without comparison data."),
+            ctx.size,
+            ctx.context
+                .report_path(ctx.id, "relative_iteration_times_small.svg"),
+        ));
+    }
+
+    fn iteration_times_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.process_list.push(iteration_times_small(
+            data.formatter,
+            data.measurements,
+            ctx.size,
+            ctx.context.report_path(ctx.id, "iteration_times_small.svg"),
+        ));
     }
 
     fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(if ctx.is_thumbnail {
-            if let Some(cmp) = data.comparison {
-                iteration_times_comparison_small(
-                    ctx.id,
-                    ctx.context,
-                    data.formatter,
-                    data.measurements,
-                    cmp,
-                    ctx.size,
-                )
-            } else {
-                iteration_times_small(
-                    ctx.id,
-                    ctx.context,
-                    data.formatter,
-                    data.measurements,
-                    ctx.size,
-                )
-            }
-        } else if let Some(cmp) = data.comparison {
-            iteration_times_comparison(
-                ctx.id,
-                ctx.context,
-                data.formatter,
-                data.measurements,
-                cmp,
-                ctx.size,
-            )
-        } else {
-            iteration_times(
-                ctx.id,
-                ctx.context,
-                data.formatter,
-                data.measurements,
-                ctx.size,
-            )
-        });
+        self.process_list.push(iteration_times(
+            ctx.id,
+            data.formatter,
+            data.measurements,
+            ctx.size,
+            ctx.context.report_path(ctx.id, "iteration_times.svg"),
+        ));
     }
 
     fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(if ctx.is_thumbnail {
-            if let Some(cmp) = data.comparison {
-                let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-                regression_comparison_small(
-                    ctx.id,
-                    ctx.context,
-                    data.formatter,
-                    data.measurements,
-                    cmp,
-                    &base_data,
-                    ctx.size,
-                )
-            } else {
-                regression_small(
-                    ctx.id,
-                    ctx.context,
-                    data.formatter,
-                    data.measurements,
-                    ctx.size,
-                )
-            }
-        } else if let Some(cmp) = data.comparison {
-            let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-            regression_comparison(
-                ctx.id,
-                ctx.context,
-                data.formatter,
-                data.measurements,
-                cmp,
-                &base_data,
-                ctx.size,
-            )
-        } else {
-            regression(
-                ctx.id,
-                ctx.context,
-                data.formatter,
-                data.measurements,
-                ctx.size,
-            )
-        });
+        self.process_list.push(regression(
+            ctx.id,
+            data.formatter,
+            data.measurements,
+            ctx.size,
+            ctx.context.report_path(ctx.id, "regression.svg"),
+        ))
+    }
+    fn regression_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.process_list.push(regression_small(
+            data.formatter,
+            data.measurements,
+            ctx.size,
+            ctx.context.report_path(ctx.id, "regression_small.svg"),
+        ))
+    }
+    fn regression_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        let cmp = data
+            .comparison
+            .expect("Shouldn't call comparison method without comparison data.");
+        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
+        self.process_list.push(regression_comparison(
+            ctx.id,
+            data.formatter,
+            data.measurements,
+            cmp,
+            &base_data,
+            ctx.size,
+            ctx.context.report_path(ctx.id, "both/regression.svg"),
+        ))
+    }
+    fn regression_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        let cmp = data
+            .comparison
+            .expect("Shouldn't call comparison method without comparison data.");
+        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
+        self.process_list.push(regression_comparison_small(
+            data.formatter,
+            data.measurements,
+            cmp,
+            &base_data,
+            ctx.size,
+            ctx.context
+                .report_path(ctx.id, "relative_regression_small.svg"),
+        ))
     }
 
     fn abs_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
@@ -221,10 +225,9 @@ impl Plotter for Gnuplot {
         if let Some(cmp) = data.comparison {
             self.process_list.push(t_test(
                 ctx.id,
-                ctx.context,
-                data.measurements,
                 cmp,
                 ctx.size,
+                ctx.context.report_path(ctx.id, "change/t-test.svg"),
             ));
         } else {
             error!("Comparison data is not provided for t_test plot");
@@ -243,7 +246,7 @@ impl Plotter for Gnuplot {
             formatter,
             ctx.id.as_title(),
             all_benchmarks,
-            &path,
+            path,
             value_type,
             ctx.context.plot_config.summary_scale,
         ));
@@ -261,7 +264,7 @@ impl Plotter for Gnuplot {
             formatter,
             ctx.id.as_title(),
             all_curves,
-            &violin_path,
+            violin_path,
             ctx.context.plot_config.summary_scale,
         ));
     }
@@ -288,9 +291,9 @@ impl PlottingBackend for Gnuplot {
     fn abs_distribution(
         &mut self,
         id: &BenchmarkId,
-        context: &ReportContext,
         statistic: Statistic,
         size: Option<Size>,
+        path: PathBuf,
 
         x_unit: &str,
         distribution_curve: LineCurve,
@@ -355,7 +358,6 @@ impl PlottingBackend for Gnuplot {
                 },
             );
 
-        let path = context.report_path(id, &format!("{}.svg", statistic));
         debug_script(&path, &figure);
         self.process_list
             .push(figure.set(Output(path)).draw().unwrap());
@@ -364,9 +366,10 @@ impl PlottingBackend for Gnuplot {
     fn rel_distribution(
         &mut self,
         id: &BenchmarkId,
-        context: &ReportContext,
         statistic: Statistic,
         size: Option<Size>,
+        path: PathBuf,
+
         distribution_curve: LineCurve,
         confidence_interval: FilledArea,
         point_estimate: Line,
@@ -447,7 +450,6 @@ impl PlottingBackend for Gnuplot {
                 },
             );
 
-        let path = context.report_path(id, &format!("change/{}.svg", statistic));
         debug_script(&path, &figure);
         self.process_list
             .push(figure.set(Output(path)).draw().unwrap())

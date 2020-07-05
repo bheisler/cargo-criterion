@@ -1,16 +1,17 @@
 use super::*;
 use crate::kde;
 use crate::plot::KDE_POINTS;
-use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
+use crate::report::{BenchmarkId, ComparisonData, MeasurementData};
 use crate::value_formatter::ValueFormatter;
+use std::path::PathBuf;
 use std::process::Child;
 
 pub(crate) fn pdf(
     id: &BenchmarkId,
-    context: &ReportContext,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
     size: Option<Size>,
+    file_path: PathBuf,
 ) -> Child {
     let avg_times = &measurements.avg_times;
     let typical = avg_times.max();
@@ -220,17 +221,15 @@ pub(crate) fn pdf(
         );
     figure.set(Title(gnuplot_escape(id.as_title())));
 
-    let path = context.report_path(id, "pdf.svg");
-    debug_script(&path, &figure);
-    figure.set(Output(path)).draw().unwrap()
+    debug_script(&file_path, &figure);
+    figure.set(Output(file_path)).draw().unwrap()
 }
 
 pub(crate) fn pdf_small(
-    id: &BenchmarkId,
-    context: &ReportContext,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
     size: Option<Size>,
+    file_path: PathBuf,
 ) -> Child {
     let avg_times = &*measurements.avg_times;
     let typical = avg_times.max();
@@ -281,9 +280,8 @@ pub(crate) fn pdf_small(
             |c| c.set(DARK_BLUE).set(LINEWIDTH).set(Label("Mean")),
         );
 
-    let path = context.report_path(id, "pdf_small.svg");
-    debug_script(&path, &figure);
-    figure.set(Output(path)).draw().unwrap()
+    debug_script(&file_path, &figure);
+    figure.set(Output(file_path)).draw().unwrap()
 }
 
 fn pdf_comparison_figure(
@@ -364,30 +362,27 @@ fn pdf_comparison_figure(
 
 pub(crate) fn pdf_comparison(
     id: &BenchmarkId,
-    context: &ReportContext,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
     comparison: &ComparisonData,
     size: Option<Size>,
+    file_path: PathBuf,
 ) -> Child {
     let mut figure = pdf_comparison_figure(formatter, measurements, comparison, size);
     figure.set(Title(gnuplot_escape(id.as_title())));
-    let path = context.report_path(id, "both/pdf.svg");
-    debug_script(&path, &figure);
-    figure.set(Output(path)).draw().unwrap()
+    debug_script(&file_path, &figure);
+    figure.set(Output(file_path)).draw().unwrap()
 }
 
 pub(crate) fn pdf_comparison_small(
-    id: &BenchmarkId,
-    context: &ReportContext,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
     comparison: &ComparisonData,
     size: Option<Size>,
+    file_path: PathBuf,
 ) -> Child {
     let mut figure = pdf_comparison_figure(formatter, measurements, comparison, size);
     figure.configure(Key, |k| k.hide());
-    let path = context.report_path(id, "relative_pdf_small.svg");
-    debug_script(&path, &figure);
-    figure.set(Output(path)).draw().unwrap()
+    debug_script(&file_path, &figure);
+    figure.set(Output(file_path)).draw().unwrap()
 }

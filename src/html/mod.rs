@@ -600,19 +600,21 @@ impl Html {
         let plot_ctx_small = plot_ctx.thumbnail(true).size(THUMBNAIL_SIZE);
 
         self.plotter.borrow_mut().pdf(plot_ctx, plot_data);
-        self.plotter.borrow_mut().pdf(plot_ctx_small, plot_data);
+        self.plotter
+            .borrow_mut()
+            .pdf_thumbnail(plot_ctx_small, plot_data);
         if measurements.absolute_estimates.slope.is_some() {
             self.plotter.borrow_mut().regression(plot_ctx, plot_data);
             self.plotter
                 .borrow_mut()
-                .regression(plot_ctx_small, plot_data);
+                .regression_thumbnail(plot_ctx_small, plot_data);
         } else {
             self.plotter
                 .borrow_mut()
                 .iteration_times(plot_ctx, plot_data);
             self.plotter
                 .borrow_mut()
-                .iteration_times(plot_ctx_small, plot_data);
+                .iteration_times_thumbnail(plot_ctx_small, plot_data);
         }
 
         self.plotter
@@ -632,22 +634,28 @@ impl Html {
 
             let comp_data = plot_data.comparison(&comp);
 
-            self.plotter.borrow_mut().pdf(plot_ctx, comp_data);
-            self.plotter.borrow_mut().pdf(plot_ctx_small, comp_data);
+            self.plotter
+                .borrow_mut()
+                .pdf_comparison(plot_ctx, comp_data);
+            self.plotter
+                .borrow_mut()
+                .pdf_comparison_thumbnail(plot_ctx_small, comp_data);
             if measurements.absolute_estimates.slope.is_some()
                 && comp.base_estimates.slope.is_some()
             {
-                self.plotter.borrow_mut().regression(plot_ctx, comp_data);
                 self.plotter
                     .borrow_mut()
-                    .regression(plot_ctx_small, comp_data);
+                    .regression_comparison(plot_ctx, comp_data);
+                self.plotter
+                    .borrow_mut()
+                    .regression_comparison_thumbnail(plot_ctx_small, comp_data);
             } else {
                 self.plotter
                     .borrow_mut()
-                    .iteration_times(plot_ctx, comp_data);
+                    .iteration_times_comparison(plot_ctx, comp_data);
                 self.plotter
                     .borrow_mut()
-                    .iteration_times(plot_ctx_small, comp_data);
+                    .iteration_times_comparison_thumbnail(plot_ctx_small, comp_data);
             }
             self.plotter.borrow_mut().t_test(plot_ctx, comp_data);
             self.plotter

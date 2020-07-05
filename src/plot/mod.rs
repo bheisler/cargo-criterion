@@ -88,10 +88,19 @@ impl<'a> PlotData<'a> {
 
 pub trait Plotter {
     fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn pdf_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn pdf_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn pdf_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
 
     fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn iteration_times_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn iteration_times_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn iteration_times_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
 
     fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn regression_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn regression_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
+    fn regression_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
 
     fn abs_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>);
 
@@ -144,9 +153,9 @@ pub trait PlottingBackend {
     fn abs_distribution(
         &mut self,
         id: &BenchmarkId,
-        context: &ReportContext,
         statistic: Statistic,
         size: Option<Size>,
+        path: PathBuf,
 
         x_unit: &str,
         distribution_curve: LineCurve,
@@ -157,9 +166,9 @@ pub trait PlottingBackend {
     fn rel_distribution(
         &mut self,
         id: &BenchmarkId,
-        context: &ReportContext,
         statistic: Statistic,
         size: Option<Size>,
+        path: PathBuf,
 
         distribution_curve: LineCurve,
         confidence_interval: FilledCurve,
@@ -241,9 +250,9 @@ impl<B: PlottingBackend> PlotGenerator<B> {
 
         self.backend.abs_distribution(
             id,
-            context,
             statistic,
             size,
+            context.report_path(id, &format!("{}.svg", statistic)),
             &unit,
             distribution_curve,
             bootstrap_area,
@@ -332,9 +341,9 @@ impl<B: PlottingBackend> PlotGenerator<B> {
 
         self.backend.rel_distribution(
             id,
-            context,
             statistic,
             size,
+            context.report_path(id, &format!("change/{}.svg", statistic)),
             distribution_curve,
             confidence_interval,
             estimate,
@@ -346,13 +355,41 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
     fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
         self.fallback.pdf(ctx, data);
     }
+    fn pdf_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.fallback.pdf_thumbnail(ctx, data);
+    }
+    fn pdf_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.fallback.pdf_comparison(ctx, data);
+    }
+    fn pdf_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.fallback.pdf_comparison_thumbnail(ctx, data);
+    }
 
     fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
         self.fallback.iteration_times(ctx, data);
     }
+    fn iteration_times_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.fallback.iteration_times_thumbnail(ctx, data);
+    }
+    fn iteration_times_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.fallback.iteration_times_comparison(ctx, data);
+    }
+    fn iteration_times_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.fallback
+            .iteration_times_comparison_thumbnail(ctx, data);
+    }
 
     fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
         self.fallback.regression(ctx, data);
+    }
+    fn regression_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.fallback.regression_thumbnail(ctx, data)
+    }
+    fn regression_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.fallback.regression_comparison(ctx, data)
+    }
+    fn regression_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        self.fallback.regression_comparison_thumbnail(ctx, data)
     }
 
     fn abs_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {

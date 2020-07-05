@@ -207,6 +207,7 @@ impl AssertionState {
             }
 
             self.assert_file_exists(&report_dir, "MAD.svg");
+            self.assert_file_exists(&report_dir, "SD.svg");
             self.assert_file_exists(&report_dir, "both/pdf.svg");
             self.assert_file_exists(&report_dir, "change/mean.svg");
             self.assert_file_exists(&report_dir, "change/median.svg");

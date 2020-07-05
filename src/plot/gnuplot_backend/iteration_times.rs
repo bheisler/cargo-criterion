@@ -1,7 +1,8 @@
 use super::*;
 use crate::plot::Size;
-use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
+use crate::report::{BenchmarkId, ComparisonData, MeasurementData};
 use crate::value_formatter::ValueFormatter;
+use std::path::PathBuf;
 use std::process::Child;
 
 fn iteration_times_figure(
@@ -42,10 +43,10 @@ fn iteration_times_figure(
 
 pub(crate) fn iteration_times(
     id: &BenchmarkId,
-    context: &ReportContext,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
     size: Option<Size>,
+    file_path: PathBuf,
 ) -> Child {
     let mut figure = iteration_times_figure(formatter, measurements, size);
     figure.set(Title(gnuplot_escape(id.as_title())));
@@ -55,24 +56,21 @@ pub(crate) fn iteration_times(
             .set(Position::Inside(Vertical::Top, Horizontal::Left))
     });
 
-    let path = context.report_path(id, "iteration_times.svg");
-    debug_script(&path, &figure);
-    figure.set(Output(path)).draw().unwrap()
+    debug_script(&file_path, &figure);
+    figure.set(Output(file_path)).draw().unwrap()
 }
 
 pub(crate) fn iteration_times_small(
-    id: &BenchmarkId,
-    context: &ReportContext,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
     size: Option<Size>,
+    file_path: PathBuf,
 ) -> Child {
     let mut figure = iteration_times_figure(formatter, measurements, size);
     figure.configure(Key, |k| k.hide());
 
-    let path = context.report_path(id, "iteration_times_small.svg");
-    debug_script(&path, &figure);
-    figure.set(Output(path)).draw().unwrap()
+    debug_script(&file_path, &figure);
+    figure.set(Output(file_path)).draw().unwrap()
 }
 
 fn iteration_times_comparison_figure(
@@ -139,32 +137,29 @@ fn iteration_times_comparison_figure(
 
 pub(crate) fn iteration_times_comparison(
     id: &BenchmarkId,
-    context: &ReportContext,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
     comparison: &ComparisonData,
     size: Option<Size>,
+    file_path: PathBuf,
 ) -> Child {
     let mut figure = iteration_times_comparison_figure(formatter, measurements, comparison, size);
     figure.set(Title(gnuplot_escape(id.as_title())));
 
-    let path = context.report_path(id, "both/iteration_times.svg");
-    debug_script(&path, &figure);
-    figure.set(Output(path)).draw().unwrap()
+    debug_script(&file_path, &figure);
+    figure.set(Output(file_path)).draw().unwrap()
 }
 
 pub(crate) fn iteration_times_comparison_small(
-    id: &BenchmarkId,
-    context: &ReportContext,
     formatter: &dyn ValueFormatter,
     measurements: &MeasurementData<'_>,
     comparison: &ComparisonData,
     size: Option<Size>,
+    file_path: PathBuf,
 ) -> Child {
     let mut figure = iteration_times_comparison_figure(formatter, measurements, comparison, size);
     figure.configure(Key, |k| k.hide());
 
-    let path = context.report_path(id, "relative_iteration_times_small.svg");
-    debug_script(&path, &figure);
-    figure.set(Output(path)).draw().unwrap()
+    debug_script(&file_path, &figure);
+    figure.set(Output(file_path)).draw().unwrap()
 }

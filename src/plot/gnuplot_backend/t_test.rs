@@ -2,16 +2,16 @@ use super::*;
 use crate::kde;
 use crate::plot::Size;
 use crate::plot::KDE_POINTS;
-use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ReportContext};
+use crate::report::{BenchmarkId, ComparisonData};
 use std::iter;
+use std::path::PathBuf;
 use std::process::Child;
 
 pub(crate) fn t_test(
     id: &BenchmarkId,
-    context: &ReportContext,
-    _measurements: &MeasurementData<'_>,
     comparison: &ComparisonData,
     size: Option<Size>,
+    file_path: PathBuf,
 ) -> Child {
     let t = comparison.t_value;
     let (xs, ys) = kde::sweep(&comparison.t_distribution, KDE_POINTS, None);
@@ -58,7 +58,6 @@ pub(crate) fn t_test(
             },
         );
 
-    let path = context.report_path(id, "change/t-test.svg");
-    debug_script(&path, &figure);
-    figure.set(Output(path)).draw().unwrap()
+    debug_script(&file_path, &figure);
+    figure.set(Output(file_path)).draw().unwrap()
 }

@@ -2,8 +2,7 @@ use crate::estimate::Statistic;
 use crate::kde;
 use crate::model::Benchmark;
 use crate::plot::{
-    FilledCurve, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend, ReportContext,
-    Size,
+    FilledCurve, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend, Size,
 };
 use crate::report::{BenchmarkId, ComparisonData, MeasurementData, ValueType};
 use crate::stats::bivariate::Data;
@@ -11,6 +10,7 @@ use crate::stats::univariate::Sample;
 use crate::value_formatter::ValueFormatter;
 use plotters::data::float::pretty_print_float;
 use plotters::prelude::*;
+use std::path::PathBuf;
 
 static DEFAULT_FONT: FontFamily = FontFamily::SansSerif;
 static SIZE: Size = Size(960, 540);
@@ -39,130 +39,142 @@ pub struct PlottersBackend;
 #[allow(unused_variables)]
 impl Plotter for PlottersBackend {
     fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        if let Some(cmp) = data.comparison {
-            let (path, title) = if ctx.is_thumbnail {
-                (
-                    ctx.context.report_path(ctx.id, "relative_pdf_small.svg"),
-                    None,
-                )
-            } else {
-                (
-                    ctx.context.report_path(ctx.id, "both/pdf.svg"),
-                    Some(ctx.id.as_title()),
-                )
-            };
-            pdf::pdf_comparison_figure(
-                path.as_ref(),
-                title,
-                data.formatter,
-                data.measurements,
-                cmp,
-                ctx.size,
-            );
-            return;
-        }
-        if ctx.is_thumbnail {
-            pdf::pdf_small(
-                ctx.id,
-                ctx.context,
-                data.formatter,
-                data.measurements,
-                ctx.size,
-            );
-        } else {
-            pdf::pdf(
-                ctx.id,
-                ctx.context,
-                data.formatter,
-                data.measurements,
-                ctx.size,
-            );
-        }
+        pdf::pdf(
+            ctx.id,
+            ctx.context,
+            data.formatter,
+            data.measurements,
+            ctx.size,
+        );
+    }
+    fn pdf_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        pdf::pdf_small(
+            ctx.id,
+            ctx.context,
+            data.formatter,
+            data.measurements,
+            ctx.size,
+        );
+    }
+    fn pdf_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        pdf::pdf_comparison_figure(
+            &ctx.context.report_path(ctx.id, "both/pdf.svg"),
+            Some(ctx.id.as_title()),
+            data.formatter,
+            data.measurements,
+            data.comparison
+                .expect("Shouldn't call comparison method without comparison data."),
+            ctx.size,
+        );
+    }
+    fn pdf_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        pdf::pdf_comparison_figure(
+            &ctx.context.report_path(ctx.id, "relative_pdf_small.svg"),
+            None,
+            data.formatter,
+            data.measurements,
+            data.comparison
+                .expect("Shouldn't call comparison method without comparison data."),
+            ctx.size,
+        );
     }
 
     fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let (title, path) = match (data.comparison.is_some(), ctx.is_thumbnail) {
-            (true, true) => (
-                None,
-                ctx.context
-                    .report_path(ctx.id, "relative_regression_small.svg"),
-            ),
-            (true, false) => (
-                Some(ctx.id.as_title()),
-                ctx.context.report_path(ctx.id, "both/regression.svg"),
-            ),
-            (false, true) => (
-                None,
-                ctx.context.report_path(ctx.id, "regression_small.svg"),
-            ),
-            (false, false) => (
-                Some(ctx.id.as_title()),
-                ctx.context.report_path(ctx.id, "regression.svg"),
-            ),
-        };
-
-        if let Some(cmp) = data.comparison {
-            let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-            regression::regression_comparison_figure(
-                title,
-                path.as_path(),
-                data.formatter,
-                data.measurements,
-                cmp,
-                &base_data,
-                ctx.size,
-            );
-        } else {
-            regression::regression_figure(
-                title,
-                path.as_path(),
-                data.formatter,
-                data.measurements,
-                ctx.size,
-            );
-        }
+        regression::regression_figure(
+            Some(ctx.id.as_title()),
+            &ctx.context.report_path(ctx.id, "regression.svg"),
+            data.formatter,
+            data.measurements,
+            ctx.size,
+        );
+    }
+    fn regression_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        regression::regression_figure(
+            None,
+            &ctx.context.report_path(ctx.id, "regression_small.svg"),
+            data.formatter,
+            data.measurements,
+            ctx.size,
+        );
+    }
+    fn regression_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        let cmp = data
+            .comparison
+            .expect("Shouldn't call comparison method without comparison data.");
+        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
+        regression::regression_comparison_figure(
+            Some(ctx.id.as_title()),
+            &ctx.context.report_path(ctx.id, "both/regression.svg"),
+            data.formatter,
+            data.measurements,
+            cmp,
+            &base_data,
+            ctx.size,
+        );
+    }
+    fn regression_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        let cmp = data
+            .comparison
+            .expect("Shouldn't call comparison method without comparison data.");
+        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
+        regression::regression_comparison_figure(
+            None,
+            &ctx.context
+                .report_path(ctx.id, "relative_regression_small.svg"),
+            data.formatter,
+            data.measurements,
+            cmp,
+            &base_data,
+            ctx.size,
+        );
     }
 
     fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        let (title, path) = match (data.comparison.is_some(), ctx.is_thumbnail) {
-            (true, true) => (
-                None,
-                ctx.context
-                    .report_path(ctx.id, "relative_iteration_times_small.svg"),
-            ),
-            (true, false) => (
-                Some(ctx.id.as_title()),
-                ctx.context.report_path(ctx.id, "both/iteration_times.svg"),
-            ),
-            (false, true) => (
-                None,
-                ctx.context.report_path(ctx.id, "iteration_times_small.svg"),
-            ),
-            (false, false) => (
-                Some(ctx.id.as_title()),
-                ctx.context.report_path(ctx.id, "iteration_times.svg"),
-            ),
-        };
-
-        if let Some(cmp) = data.comparison {
-            let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
-            iteration_times::iteration_times_comparison_figure(
-                title,
-                path.as_path(),
-                data.formatter,
-                data.measurements,
-                cmp,
-                ctx.size,
-            );
-        } else {
-            iteration_times::iteration_times_figure(
-                title,
-                path.as_path(),
-                data.formatter,
-                data.measurements,
-                ctx.size,
-            );
-        }
+        iteration_times::iteration_times_figure(
+            Some(ctx.id.as_title()),
+            &ctx.context.report_path(ctx.id, "iteration_times.svg"),
+            data.formatter,
+            data.measurements,
+            ctx.size,
+        );
+    }
+    fn iteration_times_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        iteration_times::iteration_times_figure(
+            None,
+            &ctx.context.report_path(ctx.id, "iteration_times_small.svg"),
+            data.formatter,
+            data.measurements,
+            ctx.size,
+        );
+    }
+    fn iteration_times_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        let cmp = data
+            .comparison
+            .expect("Shouldn't call comparison method without comparison data.");
+        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
+        iteration_times::iteration_times_comparison_figure(
+            Some(ctx.id.as_title()),
+            &ctx.context.report_path(ctx.id, "both/iteration_times.svg"),
+            data.formatter,
+            data.measurements,
+            cmp,
+            ctx.size,
+        );
+    }
+    fn iteration_times_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+        let cmp = data
+            .comparison
+            .expect("Shouldn't call comparison method without comparison data.");
+        let base_data = Data::new(&cmp.base_iter_counts, &cmp.base_sample_times);
+        iteration_times::iteration_times_comparison_figure(
+            None,
+            &ctx.context
+                .report_path(ctx.id, "relative_iteration_times_small.svg"),
+            data.formatter,
+            data.measurements,
+            cmp,
+            ctx.size,
+        );
     }
 
     fn abs_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
@@ -220,16 +232,15 @@ impl PlottingBackend for PlottersBackend {
     fn abs_distribution(
         &mut self,
         id: &BenchmarkId,
-        context: &ReportContext,
         statistic: Statistic,
         size: Option<Size>,
+        path: PathBuf,
 
         x_unit: &str,
         distribution_curve: LineCurve,
         bootstrap_area: FilledCurve,
         point_estimate: Line,
     ) {
-        let path = context.report_path(id, &format!("{}.svg", statistic));
         let root_area = SVGBackend::new(&path, size.unwrap_or(SIZE).into()).into_drawing_area();
 
         let x_range = plotters::data::fitting_range(distribution_curve.xs.iter());
@@ -305,9 +316,10 @@ impl PlottingBackend for PlottersBackend {
     fn rel_distribution(
         &mut self,
         id: &BenchmarkId,
-        context: &ReportContext,
         statistic: Statistic,
         size: Option<Size>,
+        path: PathBuf,
+
         distribution_curve: LineCurve,
         confidence_interval: FilledCurve,
         point_estimate: Line,
@@ -318,7 +330,6 @@ impl PlottingBackend for PlottersBackend {
         let x_max = xs_.max();
 
         let y_range = plotters::data::fitting_range(distribution_curve.ys);
-        let path = context.report_path(id, &format!("change/{}.svg", statistic));
         let root_area = SVGBackend::new(&path, size.unwrap_or(SIZE).into()).into_drawing_area();
 
         let mut chart = ChartBuilder::on(&root_area)

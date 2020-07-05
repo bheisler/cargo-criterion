@@ -9,7 +9,7 @@ use crate::value_formatter::ValueFormatter;
 use criterion_plot::prelude::*;
 use linked_hash_map::LinkedHashMap;
 use std::cmp::Ordering;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Child;
 
 const NUM_COLORS: usize = 8;
@@ -38,11 +38,10 @@ pub fn line_comparison(
     formatter: &dyn ValueFormatter,
     title: &str,
     all_benchmarks: &[(&BenchmarkId, &Benchmark)],
-    path: &Path,
+    path: PathBuf,
     value_type: ValueType,
     axis_scale: AxisScale,
 ) -> Child {
-    let path = PathBuf::from(path);
     let mut f = Figure::new();
 
     let input_suffix = match value_type {
@@ -131,11 +130,9 @@ pub fn violin(
     formatter: &dyn ValueFormatter,
     title: &str,
     all_benchmarks: &[(&BenchmarkId, &Benchmark)],
-    path: &Path,
+    path: PathBuf,
     axis_scale: AxisScale,
 ) -> Child {
-    let path = PathBuf::from(&path);
-
     let kdes = all_benchmarks
         .iter()
         .rev()
