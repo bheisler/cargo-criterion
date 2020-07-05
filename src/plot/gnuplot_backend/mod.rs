@@ -1,11 +1,8 @@
 use criterion_plot::prelude::*;
-use std::iter;
 use std::path::{Path, PathBuf};
 use std::process::Child;
-mod pdf;
 mod summary;
 mod t_test;
-use self::pdf::*;
 use self::summary::*;
 use self::t_test::*;
 use super::{
@@ -45,20 +42,6 @@ fn debug_script(path: &Path, figure: &Figure) {
     }
 }
 
-/// Private
-trait Append<T> {
-    /// Private
-    fn append_(self, item: T) -> Self;
-}
-
-// NB I wish this was in the standard library
-impl<T> Append<T> for Vec<T> {
-    fn append_(mut self, item: T) -> Vec<T> {
-        self.push(item);
-        self
-    }
-}
-
 impl From<Size> for criterion_plot::Size {
     fn from(other: Size) -> Self {
         let Size(width, height) = other;
@@ -79,57 +62,28 @@ impl Gnuplot {
 }
 
 impl Plotter for Gnuplot {
-    fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(pdf(
-            ctx.id,
-            data.formatter,
-            data.measurements,
-            ctx.size,
-            ctx.context.report_path(ctx.id, "pdf.svg"),
-        ));
+    fn pdf(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
-    fn pdf_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(pdf_small(
-            data.formatter,
-            data.measurements,
-            ctx.size,
-            ctx.context.report_path(ctx.id, "pdf_small.svg"),
-        ));
+    fn pdf_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
-    fn pdf_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(pdf_comparison(
-            ctx.id,
-            data.formatter,
-            data.measurements,
-            data.comparison
-                .expect("Shouldn't call a comparison method without comparison data"),
-            ctx.size,
-            ctx.context.report_path(ctx.id, "both/pdf.svg"),
-        ));
+    fn pdf_comparison(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
-    fn pdf_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.process_list.push(pdf_comparison_small(
-            data.formatter,
-            data.measurements,
-            data.comparison
-                .expect("Shouldn't call a comparison method without comparison data"),
-            ctx.size,
-            ctx.context.report_path(ctx.id, "relative_pdf_small.svg"),
-        ));
+    fn pdf_comparison_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
 
     fn iteration_times_comparison(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
         unimplemented!()
     }
-
     fn iteration_times_comparison_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
         unimplemented!()
     }
-
     fn iteration_times_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
         unimplemented!()
     }
-
     fn iteration_times(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
         unimplemented!()
     }
@@ -613,6 +567,257 @@ impl PlottingBackend for Gnuplot {
             figure.set(Title(gnuplot_escape(id.as_title())));
         }
 
+        debug_script(&path, &figure);
+        self.process_list
+            .push(figure.set(Output(path)).draw().unwrap())
+    }
+
+    fn pdf_full(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        unit: &str,
+        y_label: &str,
+        y_scale: f64,
+        pdf: FilledArea,
+        mean: Line,
+        fences: (Line, Line, Line, Line),
+        points: (PointPlot, PointPlot, PointPlot),
+    ) {
+        let (low_severe, low_mild, high_mild, high_severe) = fences;
+        let (not_outlier, mild, severe) = points;
+
+        let mut figure = Figure::new();
+        figure
+            .set(Font(DEFAULT_FONT))
+            .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
+            .configure(Axis::BottomX, |a| {
+                let xs_ = Sample::new(&pdf.xs);
+                a.set(Label(format!("Average time ({})", unit)))
+                    .set(Range::Limits(xs_.min(), xs_.max()))
+            })
+            .configure(Axis::LeftY, |a| {
+                a.set(Label(y_label.to_owned()))
+                    .set(Range::Limits(0., mean.end.y * y_scale))
+                    .set(ScaleFactor(y_scale))
+            })
+            .configure(Axis::RightY, |a| a.set(Label("Density (a.u.)")))
+            .configure(Key, |k| {
+                k.set(Justification::Left)
+                    .set(Order::SampleText)
+                    .set(Position::Outside(Vertical::Top, Horizontal::Right))
+            })
+            .plot(
+                FilledCurve {
+                    x: pdf.xs,
+                    y1: pdf.ys_1,
+                    y2: pdf.ys_2,
+                },
+                |c| {
+                    c.set(Axes::BottomXRightY)
+                        .set(DARK_BLUE)
+                        .set(Label("PDF"))
+                        .set(Opacity(0.25))
+                },
+            )
+            .plot(
+                Lines {
+                    x: &[mean.start.x, mean.end.x],
+                    y: &[mean.start.y, mean.end.y],
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(LINEWIDTH)
+                        .set(LineType::Dash)
+                        .set(Label("Mean"))
+                },
+            )
+            .plot(
+                Points {
+                    x: not_outlier.xs,
+                    y: not_outlier.ys,
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(Label("\"Clean\" sample"))
+                        .set(PointType::FilledCircle)
+                        .set(POINT_SIZE)
+                },
+            )
+            .plot(
+                Points {
+                    x: mild.xs,
+                    y: mild.ys,
+                },
+                |c| {
+                    c.set(DARK_ORANGE)
+                        .set(Label("Mild outliers"))
+                        .set(POINT_SIZE)
+                        .set(PointType::FilledCircle)
+                },
+            )
+            .plot(
+                Points {
+                    x: severe.xs,
+                    y: severe.ys,
+                },
+                |c| {
+                    c.set(DARK_RED)
+                        .set(Label("Severe outliers"))
+                        .set(POINT_SIZE)
+                        .set(PointType::FilledCircle)
+                },
+            )
+            .plot(
+                Lines {
+                    x: &[low_mild.start.x, low_mild.end.x],
+                    y: &[low_mild.start.y, low_mild.end.y],
+                },
+                |c| c.set(DARK_ORANGE).set(LINEWIDTH).set(LineType::Dash),
+            )
+            .plot(
+                Lines {
+                    x: &[high_mild.start.x, high_mild.end.x],
+                    y: &[high_mild.start.y, high_mild.end.y],
+                },
+                |c| c.set(DARK_ORANGE).set(LINEWIDTH).set(LineType::Dash),
+            )
+            .plot(
+                Lines {
+                    x: &[low_severe.start.x, low_severe.end.x],
+                    y: &[low_severe.start.y, low_severe.end.y],
+                },
+                |c| c.set(DARK_RED).set(LINEWIDTH).set(LineType::Dash),
+            )
+            .plot(
+                Lines {
+                    x: &[high_severe.start.x, high_severe.end.x],
+                    y: &[high_severe.start.y, high_severe.end.y],
+                },
+                |c| c.set(DARK_RED).set(LINEWIDTH).set(LineType::Dash),
+            );
+        figure.set(Title(gnuplot_escape(id.as_title())));
+
+        debug_script(&path, &figure);
+        self.process_list
+            .push(figure.set(Output(path)).draw().unwrap())
+    }
+
+    fn pdf_thumbnail(
+        &mut self,
+        size: Option<Size>,
+        path: PathBuf,
+        unit: &str,
+        mean: Line,
+        pdf: FilledArea,
+    ) {
+        let xs_ = Sample::new(pdf.xs);
+        let ys_ = Sample::new(pdf.ys_1);
+        let y_limit = ys_.max() * 1.1;
+
+        let mut figure = Figure::new();
+        figure
+            .set(Font(DEFAULT_FONT))
+            .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
+            .configure(Axis::BottomX, |a| {
+                a.set(Label(format!("Average time ({})", unit)))
+                    .set(Range::Limits(xs_.min(), xs_.max()))
+            })
+            .configure(Axis::LeftY, |a| {
+                a.set(Label("Density (a.u.)"))
+                    .set(Range::Limits(0., y_limit))
+            })
+            .configure(Axis::RightY, |a| a.hide())
+            .configure(Key, |k| k.hide())
+            .plot(
+                FilledCurve {
+                    x: pdf.xs,
+                    y1: pdf.ys_1,
+                    y2: pdf.ys_2,
+                },
+                |c| {
+                    c.set(Axes::BottomXRightY)
+                        .set(DARK_BLUE)
+                        .set(Label("PDF"))
+                        .set(Opacity(0.25))
+                },
+            )
+            .plot(
+                Lines {
+                    x: &[mean.start.x, mean.end.x],
+                    y: &[mean.start.y, mean.end.y],
+                },
+                |c| c.set(DARK_BLUE).set(LINEWIDTH).set(Label("Mean")),
+            );
+
+        debug_script(&path, &figure);
+        self.process_list
+            .push(figure.set(Output(path)).draw().unwrap())
+    }
+
+    fn pdf_comparison(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        is_thumbnail: bool,
+        unit: &str,
+        current_mean: Line,
+        current_pdf: FilledArea,
+        base_mean: Line,
+        base_pdf: FilledArea,
+    ) {
+        let mut figure = Figure::new();
+        figure
+            .set(Font(DEFAULT_FONT))
+            .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
+            .configure(Axis::BottomX, |a| {
+                a.set(Label(format!("Average time ({})", unit)))
+            })
+            .configure(Axis::LeftY, |a| a.set(Label("Density (a.u.)")))
+            .configure(Axis::RightY, |a| a.hide())
+            .configure(Key, |k| {
+                k.set(Justification::Left)
+                    .set(Order::SampleText)
+                    .set(Position::Outside(Vertical::Top, Horizontal::Right))
+            })
+            .plot(
+                FilledCurve {
+                    x: base_pdf.xs,
+                    y1: base_pdf.ys_1,
+                    y2: base_pdf.ys_2,
+                },
+                |c| c.set(DARK_RED).set(Label("Base PDF")).set(Opacity(0.5)),
+            )
+            .plot(
+                Lines {
+                    x: &[base_mean.start.x, base_mean.end.x],
+                    y: &[base_mean.start.y, base_mean.end.y],
+                },
+                |c| c.set(DARK_RED).set(Label("Base Mean")).set(LINEWIDTH),
+            )
+            .plot(
+                FilledCurve {
+                    x: current_pdf.xs,
+                    y1: current_pdf.ys_1,
+                    y2: current_pdf.ys_2,
+                },
+                |c| c.set(DARK_BLUE).set(Label("New PDF")).set(Opacity(0.5)),
+            )
+            .plot(
+                Lines {
+                    x: &[current_mean.start.x, current_mean.end.x],
+                    y: &[current_mean.start.y, current_mean.end.y],
+                },
+                |c| c.set(DARK_BLUE).set(Label("New Mean")).set(LINEWIDTH),
+            );
+
+        if is_thumbnail {
+            figure.configure(Key, |k| k.hide());
+        } else {
+            figure.set(Title(gnuplot_escape(id.as_title())));
+        }
         debug_script(&path, &figure);
         self.process_list
             .push(figure.set(Output(path)).draw().unwrap())

@@ -233,6 +233,46 @@ pub trait PlottingBackend {
         base_confidence_interval: FilledCurve,
     );
 
+    fn pdf_full(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+
+        unit: &str,
+        y_label: &str,
+        y_scale: f64,
+
+        pdf: FilledCurve,
+        mean: Line,
+        fences: (Line, Line, Line, Line),
+        points: (Points, Points, Points),
+    );
+    fn pdf_thumbnail(
+        &mut self,
+        size: Option<Size>,
+        path: PathBuf,
+
+        unit: &str,
+
+        mean: Line,
+        pdf: FilledCurve,
+    );
+    fn pdf_comparison(
+        &mut self,
+        id: &BenchmarkId,
+        size: Option<Size>,
+        path: PathBuf,
+        is_thumbnail: bool,
+
+        unit: &str,
+
+        current_mean: Line,
+        current_pdf: FilledCurve,
+        base_mean: Line,
+        base_pdf: FilledCurve,
+    );
+
     fn wait(&mut self);
 }
 
@@ -661,19 +701,259 @@ impl<B: PlottingBackend> PlotGenerator<B> {
             base_confidence_interval,
         )
     }
+
+    fn pdf_full(&mut self, ctx: PlotContext<'_>, plot_data: PlotData<'_>, file_path: PathBuf) {
+        let measurements = plot_data.measurements;
+        let formatter = plot_data.formatter;
+
+        let avg_times = &measurements.avg_times;
+        let typical = avg_times.max();
+        let mut scaled_avg_times: Vec<f64> = (avg_times as &Sample<f64>).iter().cloned().collect();
+        let unit = formatter.scale_values(typical, &mut scaled_avg_times);
+        let scaled_avg_times = Sample::new(&scaled_avg_times);
+
+        let mean = scaled_avg_times.mean();
+
+        let iter_counts = measurements.iter_counts();
+        let &max_iters = iter_counts
+            .iter()
+            .max_by_key(|&&iters| iters as u64)
+            .unwrap();
+        let exponent = (max_iters.log10() / 3.).floor() as i32 * 3;
+        let y_scale = 10f64.powi(-exponent);
+
+        let y_label = if exponent == 0 {
+            "Iterations".to_owned()
+        } else {
+            format!("Iterations (x 10^{})", exponent)
+        };
+
+        let (xs, ys) = kde::sweep(&scaled_avg_times, KDE_POINTS, None);
+        let (lost, lomt, himt, hist) = avg_times.fences();
+        let mut fences = [lost, lomt, himt, hist];
+        let _ = formatter.scale_values(typical, &mut fences);
+        let [lost, lomt, himt, hist] = fences;
+
+        let pdf = FilledCurve {
+            xs: &*xs,
+            ys_1: &*ys,
+            ys_2: &vec![0.0; ys.len()],
+        };
+        let mean = Line {
+            start: Point { x: mean, y: 0.0 },
+            end: Point {
+                x: mean,
+                y: max_iters,
+            },
+        };
+
+        let make_fence = |fence| Line {
+            start: Point { x: fence, y: 0.0 },
+            end: Point {
+                x: fence,
+                y: max_iters,
+            },
+        };
+        let low_severe = make_fence(lost);
+        let low_mild = make_fence(lomt);
+        let high_mild = make_fence(himt);
+        let high_severe = make_fence(hist);
+
+        let (not_xs, not_ys): (Vec<f64>, Vec<f64>) = (avg_times.iter())
+            .zip(scaled_avg_times.iter().copied())
+            .zip(iter_counts.iter().copied())
+            .filter_map(|(((_, point_label), x), y)| {
+                if !point_label.is_outlier() {
+                    Some((x, y))
+                } else {
+                    None
+                }
+            })
+            .unzip();
+        let not_outlier_points = Points {
+            xs: &not_xs,
+            ys: &not_ys,
+        };
+
+        let (mild_xs, mild_ys): (Vec<f64>, Vec<f64>) = (avg_times.iter())
+            .zip(scaled_avg_times.iter().copied())
+            .zip(iter_counts.iter().copied())
+            .filter_map(|(((_, point_label), x), y)| {
+                if point_label.is_mild() {
+                    Some((x, y))
+                } else {
+                    None
+                }
+            })
+            .unzip();
+        let mild_points = Points {
+            xs: &mild_xs,
+            ys: &mild_ys,
+        };
+
+        let (severe_xs, severe_ys): (Vec<f64>, Vec<f64>) = (avg_times.iter())
+            .zip(scaled_avg_times.iter().copied())
+            .zip(iter_counts.iter().copied())
+            .filter_map(|(((_, point_label), x), y)| {
+                if point_label.is_severe() {
+                    Some((x, y))
+                } else {
+                    None
+                }
+            })
+            .unzip();
+        let severe_points = Points {
+            xs: &severe_xs,
+            ys: &severe_ys,
+        };
+
+        self.backend.pdf_full(
+            ctx.id,
+            ctx.size,
+            file_path,
+            &unit,
+            &y_label,
+            y_scale,
+            pdf,
+            mean,
+            (low_severe, low_mild, high_mild, high_severe),
+            (not_outlier_points, mild_points, severe_points),
+        );
+    }
+
+    fn pdf_thumbnail_plot(
+        &mut self,
+        ctx: PlotContext<'_>,
+        plot_data: PlotData<'_>,
+        file_path: PathBuf,
+    ) {
+        let measurements = plot_data.measurements;
+        let formatter = plot_data.formatter;
+
+        let avg_times = &*measurements.avg_times;
+        let typical = avg_times.max();
+        let mut scaled_avg_times: Vec<f64> = (avg_times as &Sample<f64>).iter().cloned().collect();
+        let unit = formatter.scale_values(typical, &mut scaled_avg_times);
+        let scaled_avg_times = Sample::new(&scaled_avg_times);
+        let mean = scaled_avg_times.mean();
+
+        let (xs, ys, mean_y) = kde::sweep_and_estimate(scaled_avg_times, KDE_POINTS, None, mean);
+
+        let mean = Line {
+            start: Point { x: mean, y: 0.0 },
+            end: Point { x: mean, y: mean_y },
+        };
+        let pdf = FilledCurve {
+            xs: &*xs,
+            ys_1: &*ys,
+            ys_2: &vec![0.0; ys.len()],
+        };
+
+        self.backend
+            .pdf_thumbnail(ctx.size, file_path, &unit, mean, pdf);
+    }
+
+    fn pdf_comparison_plot(
+        &mut self,
+        ctx: PlotContext<'_>,
+        plot_data: PlotData<'_>,
+        file_path: PathBuf,
+        is_thumbnail: bool,
+    ) {
+        let comparison = plot_data
+            .comparison
+            .expect("Shouldn't call comparison methods without comparison data");
+        let measurements = plot_data.measurements;
+        let formatter = plot_data.formatter;
+
+        let base_avg_times = Sample::new(&comparison.base_avg_times);
+        let typical = base_avg_times.max().max(measurements.avg_times.max());
+        let mut scaled_base_avg_times: Vec<f64> = comparison.base_avg_times.clone();
+        let unit = formatter.scale_values(typical, &mut scaled_base_avg_times);
+        let scaled_base_avg_times = Sample::new(&scaled_base_avg_times);
+
+        let mut scaled_new_avg_times: Vec<f64> = (&measurements.avg_times as &Sample<f64>)
+            .iter()
+            .cloned()
+            .collect();
+        let _ = formatter.scale_values(typical, &mut scaled_new_avg_times);
+        let scaled_new_avg_times = Sample::new(&scaled_new_avg_times);
+
+        let base_mean = scaled_base_avg_times.mean();
+        let new_mean = scaled_new_avg_times.mean();
+
+        let (base_xs, base_ys, base_y_mean) =
+            kde::sweep_and_estimate(scaled_base_avg_times, KDE_POINTS, None, base_mean);
+        let (xs, ys, y_mean) =
+            kde::sweep_and_estimate(scaled_new_avg_times, KDE_POINTS, None, new_mean);
+
+        let base_mean = Line {
+            start: Point {
+                x: base_mean,
+                y: 0.0,
+            },
+            end: Point {
+                x: base_mean,
+                y: base_y_mean,
+            },
+        };
+        let base_pdf = FilledCurve {
+            xs: &*base_xs,
+            ys_1: &*base_ys,
+            ys_2: &vec![0.0; base_ys.len()],
+        };
+
+        let current_mean = Line {
+            start: Point {
+                x: new_mean,
+                y: 0.0,
+            },
+            end: Point {
+                x: new_mean,
+                y: y_mean,
+            },
+        };
+        let current_pdf = FilledCurve {
+            xs: &*xs,
+            ys_1: &*ys,
+            ys_2: &vec![0.0; base_ys.len()],
+        };
+
+        self.backend.pdf_comparison(
+            ctx.id,
+            ctx.size,
+            file_path,
+            is_thumbnail,
+            &unit,
+            current_mean,
+            current_pdf,
+            base_mean,
+            base_pdf,
+        );
+    }
 }
 impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
     fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.pdf(ctx, data);
+        self.pdf_full(ctx, data, ctx.context.report_path(ctx.id, "pdf.svg"));
     }
     fn pdf_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.pdf_thumbnail(ctx, data);
+        self.pdf_thumbnail_plot(ctx, data, ctx.context.report_path(ctx.id, "pdf_small.svg"));
     }
     fn pdf_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.pdf_comparison(ctx, data);
+        self.pdf_comparison_plot(
+            ctx,
+            data,
+            ctx.context.report_path(ctx.id, "both/pdf.svg"),
+            false,
+        )
     }
     fn pdf_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.pdf_comparison_thumbnail(ctx, data);
+        self.pdf_comparison_plot(
+            ctx,
+            data,
+            ctx.context.report_path(ctx.id, "relative_pdf_small.svg"),
+            true,
+        )
     }
 
     fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
