@@ -298,12 +298,20 @@ pub trait PlottingBackend {
         lines: &[(Option<&String>, LineCurve)],
     );
 
+    fn violin(
+        &mut self,
+        path: PathBuf,
+        title: &str,
+        unit: &str,
+        axis_scale: AxisScale,
+        lines: &[(&str, LineCurve)],
+    );
+
     fn wait(&mut self);
 }
 
 pub struct PlotGenerator<B: PlottingBackend> {
     pub backend: B,
-    pub fallback: Box<dyn Plotter>,
 }
 impl<B: PlottingBackend> PlotGenerator<B> {
     fn abs_distribution(
@@ -1164,7 +1172,57 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
         formatter: &dyn ValueFormatter,
         all_curves: &[(&BenchmarkId, &Benchmark)],
     ) {
-        self.fallback.violin(ctx, formatter, all_curves);
+        let mut kdes = all_curves
+            .iter()
+            .rev()
+            .map(|(id, sample)| {
+                let (x, mut y) = kde::sweep(
+                    Sample::new(&sample.latest_stats.avg_values),
+                    KDE_POINTS,
+                    None,
+                );
+                let y_max = Sample::new(&y).max();
+                for y in y.iter_mut() {
+                    *y /= y_max;
+                }
+
+                (id.as_title(), x, y)
+            })
+            .collect::<Vec<_>>();
+
+        let mut xs = kdes
+            .iter()
+            .flat_map(|&(_, ref x, _)| x.iter())
+            .filter(|&&x| x > 0.);
+        let (mut min, mut max) = {
+            let &first = xs.next().unwrap();
+            (first, first)
+        };
+        for &e in xs {
+            if e < min {
+                min = e;
+            } else if e > max {
+                max = e;
+            }
+        }
+        let mut dummy = [1.0];
+        let unit = formatter.scale_values(max, &mut dummy);
+        kdes.iter_mut().for_each(|&mut (_, ref mut xs, _)| {
+            formatter.scale_values(max, xs);
+        });
+
+        let lines = kdes
+            .iter()
+            .map(|(name, xs, ys)| (*name, LineCurve { xs: &*xs, ys: &*ys }))
+            .collect::<Vec<_>>();
+
+        self.backend.violin(
+            ctx.violin_path(),
+            ctx.id.as_title(),
+            &unit,
+            ctx.context.plot_config.summary_scale,
+            &lines,
+        )
     }
 
     fn t_test(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
@@ -1177,6 +1235,5 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
 
     fn wait(&mut self) {
         self.backend.wait();
-        self.fallback.wait();
     }
 }

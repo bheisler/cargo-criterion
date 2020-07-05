@@ -1,20 +1,16 @@
-use criterion_plot::prelude::*;
-use std::path::{Path, PathBuf};
-use std::process::Child;
-mod summary;
-use self::summary::*;
 use super::{
-    FilledCurve as FilledArea, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend,
-    Points as PointPlot, Rectangle, VerticalLine,
+    FilledCurve as FilledArea, Line, LineCurve, PlottingBackend, Points as PointPlot, Rectangle,
+    VerticalLine,
 };
 use crate::connection::AxisScale;
 use crate::estimate::Statistic;
 use crate::format;
-use crate::model::Benchmark;
 use crate::plot::Size;
 use crate::report::{BenchmarkId, ValueType};
 use crate::stats::univariate::Sample;
-use crate::value_formatter::ValueFormatter;
+use criterion_plot::prelude::*;
+use std::path::{Path, PathBuf};
+use std::process::Child;
 
 fn gnuplot_escape(string: &str) -> String {
     string.replace("_", "\\_").replace("'", "''")
@@ -93,104 +89,6 @@ impl Gnuplot {
         Gnuplot {
             process_list: vec![],
         }
-    }
-}
-
-impl Plotter for Gnuplot {
-    fn pdf(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn pdf_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn pdf_comparison(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn pdf_comparison_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn iteration_times_comparison(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn iteration_times_comparison_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn iteration_times_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn iteration_times(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn regression(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn regression_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn regression_comparison(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn regression_comparison_thumbnail(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn abs_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn rel_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn t_test(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn line_comparison(
-        &mut self,
-        _: PlotContext<'_>,
-        _: &dyn ValueFormatter,
-        _: &[(&BenchmarkId, &Benchmark)],
-        _: ValueType,
-    ) {
-        unimplemented!()
-    }
-
-    fn violin(
-        &mut self,
-        ctx: PlotContext<'_>,
-        formatter: &dyn ValueFormatter,
-        all_curves: &[(&BenchmarkId, &Benchmark)],
-    ) {
-        let violin_path = ctx.violin_path();
-
-        self.process_list.push(violin(
-            formatter,
-            ctx.id.as_title(),
-            all_curves,
-            violin_path,
-            ctx.context.plot_config.summary_scale,
-        ));
-    }
-
-    fn wait(&mut self) {
-        let start = std::time::Instant::now();
-        let child_count = self.process_list.len();
-        for child in self.process_list.drain(..) {
-            match child.wait_with_output() {
-                Ok(ref out) if out.status.success() => {}
-                Ok(out) => error!("Error in Gnuplot: {}", String::from_utf8_lossy(&out.stderr)),
-                Err(e) => error!("Got IO error while waiting for Gnuplot to complete: {}", e),
-            }
-        }
-        let elapsed = &start.elapsed();
-        info!(
-            "Waiting for {} gnuplot processes took {}",
-            child_count,
-            format::time(crate::DurationExt::to_nanos(elapsed) as f64)
-        );
     }
 }
 impl PlottingBackend for Gnuplot {
@@ -907,7 +805,70 @@ impl PlottingBackend for Gnuplot {
         self.process_list.push(f.set(Output(path)).draw().unwrap())
     }
 
+    fn violin(
+        &mut self,
+        path: PathBuf,
+        title: &str,
+        unit: &str,
+        axis_scale: AxisScale,
+        lines: &[(&str, LineCurve)],
+    ) {
+        let tics = || (0..).map(|x| (f64::from(x)) + 0.5);
+        let size: criterion_plot::Size = Size(1280, 200 + (25 * lines.len())).into();
+        let mut f = Figure::new();
+        f.set(Font(DEFAULT_FONT))
+            .set(size)
+            .set(Title(format!("{}: Violin plot", gnuplot_escape(title))))
+            .configure(Axis::BottomX, |a| {
+                a.configure(Grid::Major, |g| g.show())
+                    .configure(Grid::Minor, |g| g.hide())
+                    .set(Label(format!("Average time ({})", unit)))
+                    .set(axis_scale.to_gnuplot())
+            })
+            .configure(Axis::LeftY, |a| {
+                a.set(Label("Input"))
+                    .set(Range::Limits(0., lines.len() as f64))
+                    .set(TicLabels {
+                        positions: tics(),
+                        labels: lines.iter().map(|(id, _)| gnuplot_escape(id)),
+                    })
+            });
+
+        let mut is_first = true;
+        for (i, (_, line)) in lines.iter().enumerate() {
+            let i = i as f64 + 0.5;
+            let y1: Vec<_> = line.ys.iter().map(|&y| i + y * 0.45).collect();
+            let y2: Vec<_> = line.ys.iter().map(|&y| i - y * 0.45).collect();
+
+            f.plot(FilledCurve { x: line.xs, y1, y2 }, |c| {
+                if is_first {
+                    is_first = false;
+
+                    c.set(DARK_BLUE).set(Label("PDF")).set(Opacity(0.25))
+                } else {
+                    c.set(DARK_BLUE).set(Opacity(0.25))
+                }
+            });
+        }
+        debug_script(&path, &f);
+        self.process_list.push(f.set(Output(path)).draw().unwrap())
+    }
+
     fn wait(&mut self) {
-        Plotter::wait(self)
+        let start = std::time::Instant::now();
+        let child_count = self.process_list.len();
+        for child in self.process_list.drain(..) {
+            match child.wait_with_output() {
+                Ok(ref out) if out.status.success() => {}
+                Ok(out) => error!("Error in Gnuplot: {}", String::from_utf8_lossy(&out.stderr)),
+                Err(e) => error!("Got IO error while waiting for Gnuplot to complete: {}", e),
+            }
+        }
+        let elapsed = &start.elapsed();
+        info!(
+            "Waiting for {} gnuplot processes took {}",
+            child_count,
+            format::time(crate::DurationExt::to_nanos(elapsed) as f64)
+        );
     }
 }

@@ -1,14 +1,11 @@
 use crate::connection::AxisScale;
 use crate::estimate::Statistic;
-use crate::kde;
-use crate::model::Benchmark;
 use crate::plot::{
-    FilledCurve, Line, LineCurve, PlotContext, PlotData, Plotter, PlottingBackend, Points,
-    Rectangle as RectangleArea, Size, VerticalLine,
+    FilledCurve, Line, LineCurve, PlottingBackend, Points, Rectangle as RectangleArea, Size,
+    VerticalLine,
 };
 use crate::report::{BenchmarkId, ValueType};
 use crate::stats::univariate::Sample;
-use crate::value_formatter::ValueFormatter;
 use plotters::coord::{AsRangedCoord, Shift};
 use plotters::data::float::pretty_print_float;
 use plotters::prelude::*;
@@ -34,8 +31,6 @@ static COMPARISON_COLORS: [RGBColor; NUM_COLORS] = [
     RGBColor(139, 0, 139),
     RGBColor(0, 255, 127),
 ];
-
-mod summary;
 
 impl From<Size> for (u32, u32) {
     fn from(other: Size) -> Self {
@@ -133,90 +128,55 @@ impl PlottersBackend {
             .draw()
             .unwrap();
     }
+
+    fn draw_violin_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = f64>>(
+        &self,
+        root_area: DrawingArea<SVGBackend, Shift>,
+        unit: &str,
+        x_range: XR,
+        y_range: YR,
+        data: &[(&str, LineCurve)],
+    ) {
+        let mut chart = ChartBuilder::on(&root_area)
+            .margin((5).percent())
+            .set_label_area_size(LabelAreaPosition::Left, (10).percent_width().min(60))
+            .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_width().min(40))
+            .build_ranged(x_range, y_range)
+            .unwrap();
+
+        chart
+            .configure_mesh()
+            .disable_mesh()
+            .y_desc("Input")
+            .x_desc(format!("Average time ({})", unit))
+            .y_label_style((DEFAULT_FONT, 10))
+            .y_label_formatter(&|v: &f64| data[v.round() as usize].0.to_string())
+            .y_labels(data.len())
+            .draw()
+            .unwrap();
+
+        for (i, (_, curve)) in data.into_iter().enumerate() {
+            let base = i as f64;
+
+            chart
+                .draw_series(AreaSeries::new(
+                    curve.to_points().map(|(x, y)| (x, base + y / 2.0)),
+                    base,
+                    &DARK_BLUE.mix(0.25),
+                ))
+                .unwrap();
+
+            chart
+                .draw_series(AreaSeries::new(
+                    curve.to_points().map(|(x, y)| (x, base - y / 2.0)),
+                    base,
+                    &DARK_BLUE.mix(0.25),
+                ))
+                .unwrap();
+        }
+    }
 }
 
-#[allow(unused_variables)]
-impl Plotter for PlottersBackend {
-    fn pdf(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn pdf_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn pdf_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn pdf_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn regression(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn regression_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn regression_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn regression_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn iteration_times(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn iteration_times_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn iteration_times_comparison(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-    fn iteration_times_comparison_thumbnail(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn abs_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn rel_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn line_comparison(
-        &mut self,
-        ctx: PlotContext<'_>,
-        formatter: &dyn ValueFormatter,
-        all_benchmarks: &[(&BenchmarkId, &Benchmark)],
-        value_type: ValueType,
-    ) {
-        unimplemented!()
-    }
-
-    fn violin(
-        &mut self,
-        ctx: PlotContext<'_>,
-        formatter: &dyn ValueFormatter,
-        all_benchmarks: &[(&BenchmarkId, &Benchmark)],
-    ) {
-        let violin_path = ctx.violin_path();
-
-        summary::violin(
-            formatter,
-            ctx.id.as_title(),
-            all_benchmarks,
-            &violin_path,
-            ctx.context.plot_config.summary_scale,
-        );
-    }
-
-    fn t_test(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        unimplemented!()
-    }
-
-    fn wait(&mut self) {}
-}
 impl PlottingBackend for PlottersBackend {
     fn abs_distribution(
         &mut self,
@@ -977,7 +937,32 @@ impl PlottingBackend for PlottersBackend {
         }
     }
 
-    fn wait(&mut self) {
-        Plotter::wait(self)
+    fn violin(
+        &mut self,
+        path: PathBuf,
+        title: &str,
+        unit: &str,
+        axis_scale: AxisScale,
+        lines: &[(&str, LineCurve)],
+    ) {
+        let x_range =
+            plotters::data::fitting_range(lines.iter().flat_map(|(_, curve)| curve.xs.iter()));
+        let y_range = -0.5..lines.len() as f64 - 0.5;
+
+        let size = (960, 150 + (18 * lines.len() as u32));
+
+        let root_area = SVGBackend::new(&path, size)
+            .into_drawing_area()
+            .titled(&format!("{}: Violin plot", title), (DEFAULT_FONT, 20))
+            .unwrap();
+
+        match axis_scale {
+            AxisScale::Linear => self.draw_violin_figure(root_area, &unit, x_range, y_range, lines),
+            AxisScale::Logarithmic => {
+                self.draw_violin_figure(root_area, &unit, LogRange(x_range), y_range, lines)
+            }
+        }
     }
+
+    fn wait(&mut self) {}
 }

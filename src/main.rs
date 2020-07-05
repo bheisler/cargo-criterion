@@ -177,7 +177,6 @@ fn gnuplot_plotter() -> Result<Box<dyn Plotter>, Error> {
         Ok(_) => {
             let generator = crate::plot::PlotGenerator {
                 backend: crate::plot::Gnuplot::new(),
-                fallback: Box::new(crate::plot::Gnuplot::new()),
             };
             Ok(Box::new(generator))
         },
@@ -196,7 +195,6 @@ fn gnuplot_plotter() -> Result<Box<dyn Plotter>, Error> {
 fn plotters_plotter() -> Result<Box<dyn Plotter>, Error> {
     let generator = crate::plot::PlotGenerator {
         backend: crate::plot::PlottersBackend,
-        fallback: Box::new(crate::plot::PlottersBackend),
     };
     Ok(Box::new(generator))
 }
