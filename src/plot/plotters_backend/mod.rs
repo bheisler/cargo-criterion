@@ -20,7 +20,6 @@ const DARK_BLUE: RGBColor = RGBColor(31, 120, 180);
 const DARK_ORANGE: RGBColor = RGBColor(255, 127, 0);
 const DARK_RED: RGBColor = RGBColor(227, 26, 28);
 
-mod distributions;
 mod iteration_times;
 mod pdf;
 mod regression;
@@ -166,18 +165,12 @@ impl Plotter for PlottersBackend {
         }
     }
 
-    fn abs_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
+    fn abs_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
         unimplemented!()
     }
 
-    fn rel_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        distributions::rel_distributions(
-            ctx.id,
-            ctx.context,
-            data.measurements,
-            data.comparison.unwrap(),
-            ctx.size,
-        );
+    fn rel_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
 
     fn line_comparison(
@@ -302,6 +295,100 @@ impl PlottingBackend for PlottersBackend {
             .label("Point estimate")
             .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
 
+        chart
+            .configure_series_labels()
+            .position(SeriesLabelPosition::UpperRight)
+            .draw()
+            .unwrap();
+    }
+
+    fn rel_distribution(
+        &mut self,
+        id: &BenchmarkId,
+        context: &ReportContext,
+        statistic: Statistic,
+        size: Option<Size>,
+        distribution_curve: LineCurve,
+        confidence_interval: FilledCurve,
+        point_estimate: Line,
+        noise_threshold: FilledCurve,
+    ) {
+        let xs_ = Sample::new(&distribution_curve.xs);
+        let x_min = xs_.min();
+        let x_max = xs_.max();
+
+        let y_range = plotters::data::fitting_range(distribution_curve.ys);
+        let path = context.report_path(id, &format!("change/{}.svg", statistic));
+        let root_area = SVGBackend::new(&path, size.unwrap_or(SIZE).into()).into_drawing_area();
+
+        let mut chart = ChartBuilder::on(&root_area)
+            .margin((5).percent())
+            .caption(
+                format!("{}:{}", id.as_title(), statistic),
+                (DEFAULT_FONT, 20),
+            )
+            .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
+            .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
+            .build_ranged(x_min..x_max, y_range.clone())
+            .unwrap();
+
+        chart
+            .configure_mesh()
+            .disable_mesh()
+            .x_desc("Relative change (%)")
+            .y_desc("Density (a.u.)")
+            .x_label_formatter(&|&v| pretty_print_float(v, true))
+            .y_label_formatter(&|&v| pretty_print_float(v, true))
+            .draw()
+            .unwrap();
+
+        chart
+            .draw_series(LineSeries::new(
+                (distribution_curve.xs.iter().copied()).zip(distribution_curve.ys.iter().copied()),
+                &DARK_BLUE,
+            ))
+            .unwrap()
+            .label("Bootstrap distribution")
+            .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
+
+        chart
+            .draw_series(AreaSeries::new(
+                (confidence_interval.xs.iter().copied())
+                    .zip(confidence_interval.ys_1.iter().copied()),
+                0.0,
+                DARK_BLUE.mix(0.25).filled().stroke_width(3),
+            ))
+            .unwrap()
+            .label("Confidence interval")
+            .legend(|(x, y)| {
+                Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_BLUE.mix(0.25).filled())
+            });
+
+        chart
+            .draw_series(std::iter::once(PathElement::new(
+                vec![
+                    (point_estimate.start.x, point_estimate.start.y),
+                    (point_estimate.end.x, point_estimate.end.y),
+                ],
+                DARK_BLUE.filled().stroke_width(3),
+            )))
+            .unwrap()
+            .label("Point estimate")
+            .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
+
+        chart
+            .draw_series(std::iter::once(Rectangle::new(
+                [
+                    (noise_threshold.xs[0], y_range.start),
+                    (noise_threshold.xs[1], y_range.end),
+                ],
+                DARK_RED.mix(0.1).filled(),
+            )))
+            .unwrap()
+            .label("Noise threshold")
+            .legend(|(x, y)| {
+                Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_RED.mix(0.25).filled())
+            });
         chart
             .configure_series_labels()
             .position(SeriesLabelPosition::UpperRight)

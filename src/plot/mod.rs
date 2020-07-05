@@ -18,13 +18,14 @@ use crate::stats::Distribution;
 use crate::value_formatter::ValueFormatter;
 use std::path::PathBuf;
 
-const REPORT_STATS: [Statistic; 6] = [
+const REPORT_STATS: [Statistic; 7] = [
     Statistic::Typical,
     Statistic::Slope,
     Statistic::Mean,
     Statistic::Median,
     Statistic::MedianAbsDev,
     Statistic::MedianAbsDev,
+    Statistic::StdDev,
 ];
 const CHANGE_STATS: [Statistic; 2] = [Statistic::Mean, Statistic::Median];
 
@@ -153,6 +154,19 @@ pub trait PlottingBackend {
         point_estimate: Line,
     );
 
+    fn rel_distribution(
+        &mut self,
+        id: &BenchmarkId,
+        context: &ReportContext,
+        statistic: Statistic,
+        size: Option<Size>,
+
+        distribution_curve: LineCurve,
+        confidence_interval: FilledCurve,
+        point_estimate: Line,
+        noise_threshold: FilledCurve,
+    );
+
     fn wait(&mut self);
 }
 
@@ -214,7 +228,7 @@ impl<B: PlottingBackend> PlotGenerator<B> {
         };
         let bootstrap_area = FilledCurve {
             xs: &kde_xs[start..end],
-            ys_1: &*ys,
+            ys_1: &ys[start..end],
             ys_2: &vec![0.0; len],
         };
         let estimate = Line {
@@ -234,6 +248,97 @@ impl<B: PlottingBackend> PlotGenerator<B> {
             distribution_curve,
             bootstrap_area,
             estimate,
+        );
+    }
+
+    fn rel_distribution(
+        &mut self,
+        id: &BenchmarkId,
+        context: &ReportContext,
+        statistic: Statistic,
+        distribution: &Distribution<f64>,
+        estimate: &Estimate,
+        noise_threshold: f64,
+        size: Option<Size>,
+    ) {
+        let ci = &estimate.confidence_interval;
+        let (lb, ub) = (ci.lower_bound, ci.upper_bound);
+
+        let start = lb - (ub - lb) / 9.;
+        let end = ub + (ub - lb) / 9.;
+        let (xs, ys) = kde::sweep(distribution, KDE_POINTS, Some((start, end)));
+        let xs_ = Sample::new(&xs);
+
+        // interpolate between two points of the KDE sweep to find the Y position at the point estimate.
+        let point = estimate.point_estimate;
+        let n_point = xs
+            .iter()
+            .position(|&x| x >= point)
+            .unwrap_or(ys.len() - 1)
+            .max(1);
+        let slope = (ys[n_point] - ys[n_point - 1]) / (xs[n_point] - xs[n_point - 1]);
+        let y_point = ys[n_point - 1] + (slope * (point - xs[n_point - 1]));
+
+        let start = xs.iter().enumerate().find(|&(_, &x)| x >= lb).unwrap().0;
+        let end = xs
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|&(_, &x)| x <= ub)
+            .unwrap()
+            .0;
+        let len = end - start;
+
+        let x_min = xs_.min();
+        let x_max = xs_.max();
+
+        let (fc_start, fc_end) = if noise_threshold < x_min || -noise_threshold > x_max {
+            let middle = (x_min + x_max) / 2.;
+
+            (middle, middle)
+        } else {
+            (
+                if -noise_threshold < x_min {
+                    x_min
+                } else {
+                    -noise_threshold
+                },
+                if noise_threshold > x_max {
+                    x_max
+                } else {
+                    noise_threshold
+                },
+            )
+        };
+
+        let distribution_curve = LineCurve { xs: &*xs, ys: &*ys };
+        let confidence_interval = FilledCurve {
+            xs: &xs[start..end],
+            ys_1: &ys[start..end],
+            ys_2: &vec![0.0; len],
+        };
+        let estimate = Line {
+            start: Point { x: point, y: 0.0 },
+            end: Point {
+                x: point,
+                y: y_point,
+            },
+        };
+        let noise_threshold = FilledCurve {
+            xs: &[fc_start, fc_end],
+            ys_1: &[1.0, 1.0],
+            ys_2: &[0.0, 0.0],
+        };
+
+        self.backend.rel_distribution(
+            id,
+            context,
+            statistic,
+            size,
+            distribution_curve,
+            confidence_interval,
+            estimate,
+            noise_threshold,
         );
     }
 }
@@ -275,7 +380,20 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
     }
 
     fn rel_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        self.fallback.rel_distributions(ctx, data);
+        let comparison = data
+            .comparison
+            .expect("Should not call rel_distributions without comparison data.");
+        crate::plot::CHANGE_STATS.iter().for_each(|&statistic| {
+            self.rel_distribution(
+                ctx.id,
+                ctx.context,
+                statistic,
+                comparison.relative_distributions.get(statistic),
+                comparison.relative_estimates.get(statistic),
+                comparison.noise_threshold,
+                ctx.size,
+            )
+        });
     }
 
     fn line_comparison(

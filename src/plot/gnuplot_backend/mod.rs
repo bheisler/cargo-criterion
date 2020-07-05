@@ -2,13 +2,11 @@ use criterion_plot::prelude::*;
 use std::iter;
 use std::path::PathBuf;
 use std::process::Child;
-mod distributions;
 mod iteration_times;
 mod pdf;
 mod regression;
 mod summary;
 mod t_test;
-use self::distributions::*;
 use self::pdf::*;
 use self::regression::*;
 use self::summary::*;
@@ -215,18 +213,8 @@ impl Plotter for Gnuplot {
         unimplemented!()
     }
 
-    fn rel_distributions(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
-        if let Some(cmp) = data.comparison {
-            self.process_list.extend(rel_distributions(
-                ctx.id,
-                ctx.context,
-                data.measurements,
-                cmp,
-                ctx.size,
-            ));
-        } else {
-            error!("Comparison data is not provided for a relative distribution figure");
-        }
+    fn rel_distributions(&mut self, _: PlotContext<'_>, _: PlotData<'_>) {
+        unimplemented!()
     }
 
     fn t_test(&mut self, ctx: PlotContext<'_>, data: PlotData<'_>) {
@@ -371,6 +359,98 @@ impl PlottingBackend for Gnuplot {
         debug_script(&path, &figure);
         self.process_list
             .push(figure.set(Output(path)).draw().unwrap());
+    }
+
+    fn rel_distribution(
+        &mut self,
+        id: &BenchmarkId,
+        context: &ReportContext,
+        statistic: Statistic,
+        size: Option<Size>,
+        distribution_curve: LineCurve,
+        confidence_interval: FilledArea,
+        point_estimate: Line,
+        noise_threshold: FilledArea,
+    ) {
+        let xs_ = Sample::new(&distribution_curve.xs);
+        let x_min = xs_.min();
+        let x_max = xs_.max();
+
+        let mut figure = Figure::new();
+
+        figure
+            .set(Font(DEFAULT_FONT))
+            .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
+            .configure(Axis::LeftY, |a| a.set(Label("Density (a.u.)")))
+            .configure(Key, |k| {
+                k.set(Justification::Left)
+                    .set(Order::SampleText)
+                    .set(Position::Outside(Vertical::Top, Horizontal::Right))
+            })
+            .set(Title(format!(
+                "{}: {}",
+                gnuplot_escape(id.as_title()),
+                statistic
+            )))
+            .configure(Axis::BottomX, |a| {
+                a.set(Label("Relative change (%)"))
+                    .set(Range::Limits(x_min * 100., x_max * 100.))
+                    .set(ScaleFactor(100.))
+            })
+            .plot(
+                Lines {
+                    x: distribution_curve.xs,
+                    y: distribution_curve.ys,
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(LINEWIDTH)
+                        .set(Label("Bootstrap distribution"))
+                        .set(LineType::Solid)
+                },
+            )
+            .plot(
+                FilledCurve {
+                    x: confidence_interval.xs,
+                    y1: confidence_interval.ys_1,
+                    y2: confidence_interval.ys_2,
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(Label("Confidence interval"))
+                        .set(Opacity(0.25))
+                },
+            )
+            .plot(
+                Lines {
+                    x: &[point_estimate.start.x, point_estimate.end.x],
+                    y: &[point_estimate.start.y, point_estimate.end.y],
+                },
+                |c| {
+                    c.set(DARK_BLUE)
+                        .set(LINEWIDTH)
+                        .set(Label("Point estimate"))
+                        .set(LineType::Dash)
+                },
+            )
+            .plot(
+                FilledCurve {
+                    x: noise_threshold.xs,
+                    y1: noise_threshold.ys_1,
+                    y2: noise_threshold.ys_2,
+                },
+                |c| {
+                    c.set(Axes::BottomXRightY)
+                        .set(DARK_RED)
+                        .set(Label("Noise threshold"))
+                        .set(Opacity(0.1))
+                },
+            );
+
+        let path = context.report_path(id, &format!("change/{}.svg", statistic));
+        debug_script(&path, &figure);
+        self.process_list
+            .push(figure.set(Output(path)).draw().unwrap())
     }
 
     fn wait(&mut self) {
