@@ -24,7 +24,7 @@ const NUM_COLORS: usize = 8;
 static COMPARISON_COLORS: [Color; NUM_COLORS] = [
     Color { r: 8, g: 34, b: 34 },
     Color { r: 6, g: 139, b: 87 },
-    Color { r: 0, g: 139,b: 139 },
+    Color { r: 0, g: 139, b: 139 },
     Color { r: 5, g: 215, b: 0 },
     Color { r: 0, g: 0, b: 139 },
     Color { r: 0, g: 20, b: 60 },
