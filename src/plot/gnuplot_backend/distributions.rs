@@ -1,7 +1,5 @@
 use crate::estimate::Statistic;
-use crate::plot::gnuplot_backend::{
-    gnuplot_escape, DARK_BLUE, DARK_RED, DEFAULT_FONT, LINEWIDTH, SIZE,
-};
+use crate::plot::gnuplot_backend::{gnuplot_escape, Colors, DEFAULT_FONT, LINEWIDTH, SIZE};
 use crate::plot::Size;
 use crate::plot::{FilledCurve as FilledArea, Line, LineCurve, Rectangle};
 use crate::report::BenchmarkId;
@@ -9,6 +7,7 @@ use crate::stats::univariate::Sample;
 use criterion_plot::prelude::*;
 
 pub fn abs_distribution(
+    colors: &Colors,
     id: &BenchmarkId,
     statistic: Statistic,
     size: Option<Size>,
@@ -45,7 +44,7 @@ pub fn abs_distribution(
                 y: distribution_curve.ys,
             },
             |c| {
-                c.set(DARK_BLUE)
+                c.set(colors.current_sample)
                     .set(LINEWIDTH)
                     .set(Label("Bootstrap distribution"))
                     .set(LineType::Solid)
@@ -58,7 +57,7 @@ pub fn abs_distribution(
                 y2: bootstrap_area.ys_2,
             },
             |c| {
-                c.set(DARK_BLUE)
+                c.set(colors.current_sample)
                     .set(Label("Confidence interval"))
                     .set(Opacity(0.25))
             },
@@ -69,7 +68,7 @@ pub fn abs_distribution(
                 y: &[point_estimate.start.y, point_estimate.end.y],
             },
             |c| {
-                c.set(DARK_BLUE)
+                c.set(colors.current_sample)
                     .set(LINEWIDTH)
                     .set(Label("Point estimate"))
                     .set(LineType::Dash)
@@ -79,6 +78,7 @@ pub fn abs_distribution(
 }
 
 pub fn rel_distribution(
+    colors: &Colors,
     id: &BenchmarkId,
     statistic: Statistic,
     size: Option<Size>,
@@ -119,7 +119,7 @@ pub fn rel_distribution(
                 y: distribution_curve.ys,
             },
             |c| {
-                c.set(DARK_BLUE)
+                c.set(colors.current_sample)
                     .set(LINEWIDTH)
                     .set(Label("Bootstrap distribution"))
                     .set(LineType::Solid)
@@ -132,13 +132,13 @@ pub fn rel_distribution(
                 y2: confidence_interval.ys_2,
             },
             |c| {
-                c.set(DARK_BLUE)
+                c.set(colors.current_sample)
                     .set(Label("Confidence interval"))
                     .set(Opacity(0.25))
             },
         )
         .plot(to_lines!(point_estimate), |c| {
-            c.set(DARK_BLUE)
+            c.set(colors.current_sample)
                 .set(LINEWIDTH)
                 .set(Label("Point estimate"))
                 .set(LineType::Dash)
@@ -151,7 +151,7 @@ pub fn rel_distribution(
             },
             |c| {
                 c.set(Axes::BottomXRightY)
-                    .set(DARK_RED)
+                    .set(colors.severe_outlier)
                     .set(Label("Noise threshold"))
                     .set(Opacity(0.1))
             },

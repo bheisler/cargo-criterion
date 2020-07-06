@@ -1,4 +1,4 @@
-use crate::plot::plotters_backend::{DARK_BLUE, DARK_RED, DEFAULT_FONT, POINT_SIZE, SIZE};
+use crate::plot::plotters_backend::{Colors, DEFAULT_FONT, POINT_SIZE, SIZE};
 use crate::plot::{FilledCurve, Line, Points, Size};
 use crate::report::BenchmarkId;
 use plotters::data::float::pretty_print_float;
@@ -6,6 +6,7 @@ use plotters::prelude::*;
 use std::path::PathBuf;
 
 pub fn regression(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
     path: PathBuf,
@@ -46,23 +47,24 @@ pub fn regression(
 
     chart
         .draw_series(
-            (sample.to_points()).map(|(x, y)| Circle::new((x, y), POINT_SIZE, DARK_BLUE.filled())),
+            (sample.to_points())
+                .map(|(x, y)| Circle::new((x, y), POINT_SIZE, colors.current_sample.filled())),
         )
         .unwrap()
         .label("Sample")
-        .legend(|(x, y)| Circle::new((x + 10, y), POINT_SIZE, DARK_BLUE.filled()));
+        .legend(|(x, y)| Circle::new((x + 10, y), POINT_SIZE, colors.current_sample.filled()));
 
     chart
         .draw_series(std::iter::once(PathElement::new(
             regression.to_line_vec(),
-            &DARK_BLUE,
+            &colors.current_sample,
         )))
         .unwrap()
         .label("Linear regression")
         .legend(|(x, y)| {
             PathElement::new(
                 vec![(x, y), (x + 20, y)],
-                DARK_BLUE.filled().stroke_width(2),
+                colors.current_sample.filled().stroke_width(2),
             )
         });
 
@@ -73,12 +75,15 @@ pub fn regression(
                 (confidence_interval.xs[1], confidence_interval.ys_1[1]),
                 (confidence_interval.xs[1], confidence_interval.ys_2[1]),
             ],
-            DARK_BLUE.mix(0.25).filled(),
+            colors.current_sample.mix(0.25).filled(),
         )))
         .unwrap()
         .label("Confidence interval")
         .legend(|(x, y)| {
-            Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_BLUE.mix(0.25).filled())
+            Rectangle::new(
+                [(x, y - 5), (x + 20, y + 5)],
+                colors.current_sample.mix(0.25).filled(),
+            )
         });
 
     if !is_thumbnail {
@@ -91,6 +96,7 @@ pub fn regression(
 }
 
 pub fn regression_comparison(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
     path: PathBuf,
@@ -130,7 +136,7 @@ pub fn regression_comparison(
 
     chart
         .draw_series(vec![
-            PathElement::new(base_regression.to_line_vec(), &DARK_RED).into_dyn(),
+            PathElement::new(base_regression.to_line_vec(), &colors.previous_sample).into_dyn(),
             Polygon::new(
                 vec![
                     (
@@ -146,19 +152,22 @@ pub fn regression_comparison(
                         base_confidence_interval.ys_2[1],
                     ),
                 ],
-                DARK_RED.mix(0.25).filled(),
+                colors.previous_sample.mix(0.25).filled(),
             )
             .into_dyn(),
         ])
         .unwrap()
         .label("Base Sample")
         .legend(|(x, y)| {
-            PathElement::new(vec![(x, y), (x + 20, y)], DARK_RED.filled().stroke_width(2))
+            PathElement::new(
+                vec![(x, y), (x + 20, y)],
+                colors.previous_sample.filled().stroke_width(2),
+            )
         });
 
     chart
         .draw_series(vec![
-            PathElement::new(current_regression.to_line_vec(), &DARK_BLUE).into_dyn(),
+            PathElement::new(current_regression.to_line_vec(), &colors.current_sample).into_dyn(),
             Polygon::new(
                 vec![
                     (
@@ -174,7 +183,7 @@ pub fn regression_comparison(
                         current_confidence_interval.ys_2[1],
                     ),
                 ],
-                DARK_BLUE.mix(0.25).filled(),
+                colors.current_sample.mix(0.25).filled(),
             )
             .into_dyn(),
         ])
@@ -183,7 +192,7 @@ pub fn regression_comparison(
         .legend(|(x, y)| {
             PathElement::new(
                 vec![(x, y), (x + 20, y)],
-                DARK_BLUE.filled().stroke_width(2),
+                colors.current_sample.filled().stroke_width(2),
             )
         });
 

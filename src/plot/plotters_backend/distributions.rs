@@ -1,5 +1,5 @@
 use crate::estimate::Statistic;
-use crate::plot::plotters_backend::{DARK_BLUE, DARK_RED, DEFAULT_FONT, SIZE};
+use crate::plot::plotters_backend::{Colors, DEFAULT_FONT, SIZE};
 use crate::plot::{FilledCurve, Line, LineCurve, Rectangle as RectangleArea, Size};
 use crate::report::BenchmarkId;
 use crate::stats::univariate::Sample;
@@ -8,6 +8,7 @@ use plotters::prelude::*;
 use std::path::PathBuf;
 
 pub fn abs_distribution(
+    colors: &Colors,
     id: &BenchmarkId,
     statistic: Statistic,
     size: Option<Size>,
@@ -47,31 +48,37 @@ pub fn abs_distribution(
         .unwrap();
 
     chart
-        .draw_series(LineSeries::new(distribution_curve.to_points(), &DARK_BLUE))
+        .draw_series(LineSeries::new(
+            distribution_curve.to_points(),
+            &colors.current_sample,
+        ))
         .unwrap()
         .label("Bootstrap distribution")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.current_sample));
 
     chart
         .draw_series(AreaSeries::new(
             bootstrap_area.to_points(),
             0.0,
-            DARK_BLUE.mix(0.25).filled().stroke_width(3),
+            colors.current_sample.mix(0.25).filled().stroke_width(3),
         ))
         .unwrap()
         .label("Confidence interval")
         .legend(|(x, y)| {
-            Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_BLUE.mix(0.25).filled())
+            Rectangle::new(
+                [(x, y - 5), (x + 20, y + 5)],
+                colors.current_sample.mix(0.25).filled(),
+            )
         });
 
     chart
         .draw_series(std::iter::once(PathElement::new(
             point_estimate.to_line_vec(),
-            DARK_BLUE.filled().stroke_width(3),
+            colors.current_sample.filled().stroke_width(3),
         )))
         .unwrap()
         .label("Point estimate")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.current_sample));
 
     chart
         .configure_series_labels()
@@ -81,6 +88,7 @@ pub fn abs_distribution(
 }
 
 pub fn rel_distribution(
+    colors: &Colors,
     id: &BenchmarkId,
     statistic: Statistic,
     size: Option<Size>,
@@ -120,31 +128,37 @@ pub fn rel_distribution(
         .unwrap();
 
     chart
-        .draw_series(LineSeries::new(distribution_curve.to_points(), &DARK_BLUE))
+        .draw_series(LineSeries::new(
+            distribution_curve.to_points(),
+            &colors.current_sample,
+        ))
         .unwrap()
         .label("Bootstrap distribution")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.current_sample));
 
     chart
         .draw_series(AreaSeries::new(
             confidence_interval.to_points(),
             0.0,
-            DARK_BLUE.mix(0.25).filled().stroke_width(3),
+            colors.current_sample.mix(0.25).filled().stroke_width(3),
         ))
         .unwrap()
         .label("Confidence interval")
         .legend(|(x, y)| {
-            Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_BLUE.mix(0.25).filled())
+            Rectangle::new(
+                [(x, y - 5), (x + 20, y + 5)],
+                colors.current_sample.mix(0.25).filled(),
+            )
         });
 
     chart
         .draw_series(std::iter::once(PathElement::new(
             point_estimate.to_line_vec(),
-            DARK_BLUE.filled().stroke_width(3),
+            colors.current_sample.filled().stroke_width(3),
         )))
         .unwrap()
         .label("Point estimate")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.current_sample));
 
     chart
         .draw_series(std::iter::once(Rectangle::new(
@@ -152,12 +166,15 @@ pub fn rel_distribution(
                 (noise_threshold.left, y_range.start),
                 (noise_threshold.right, y_range.end),
             ],
-            DARK_RED.mix(0.1).filled(),
+            colors.previous_sample.mix(0.1).filled(),
         )))
         .unwrap()
         .label("Noise threshold")
         .legend(|(x, y)| {
-            Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_RED.mix(0.25).filled())
+            Rectangle::new(
+                [(x, y - 5), (x + 20, y + 5)],
+                colors.previous_sample.mix(0.25).filled(),
+            )
         });
     chart
         .configure_series_labels()

@@ -1,10 +1,11 @@
-use crate::plot::gnuplot_backend::{gnuplot_escape, DARK_BLUE, DEFAULT_FONT, LINEWIDTH, SIZE};
+use crate::plot::gnuplot_backend::{gnuplot_escape, Colors, DEFAULT_FONT, LINEWIDTH, SIZE};
 use crate::plot::Size;
 use crate::plot::{FilledCurve as FilledArea, VerticalLine};
 use crate::report::BenchmarkId;
 use criterion_plot::prelude::*;
 
 pub fn t_test(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
     t: VerticalLine,
@@ -32,14 +33,14 @@ pub fn t_test(
                 y2: t_distribution.ys_2,
             },
             |c| {
-                c.set(DARK_BLUE)
+                c.set(colors.current_sample)
                     .set(Label("t distribution"))
                     .set(Opacity(0.25))
             },
         )
         .plot(to_lines!(t, 1.0), |c| {
             c.set(Axes::BottomXRightY)
-                .set(DARK_BLUE)
+                .set(colors.current_sample)
                 .set(LINEWIDTH)
                 .set(Label("t statistic"))
                 .set(LineType::Solid)

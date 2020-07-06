@@ -1,7 +1,6 @@
 use crate::connection::AxisScale;
 use crate::plot::gnuplot_backend::{
-    gnuplot_escape, COMPARISON_COLORS, DARK_BLUE, DEFAULT_FONT, LINEWIDTH, NUM_COLORS, POINT_SIZE,
-    SIZE,
+    gnuplot_escape, Colors, DEFAULT_FONT, LINEWIDTH, POINT_SIZE, SIZE,
 };
 use crate::plot::LineCurve;
 use crate::plot::Size;
@@ -9,6 +8,7 @@ use crate::report::ValueType;
 use criterion_plot::prelude::*;
 
 pub fn line_comparison(
+    colors: &Colors,
     title: &str,
     unit: &str,
     value_type: ValueType,
@@ -61,7 +61,7 @@ pub fn line_comparison(
                     }
                     c.set(LINEWIDTH)
                         .set(LineType::Solid)
-                        .set(COMPARISON_COLORS[i % NUM_COLORS])
+                        .set(colors.comparison_colors[i % colors.comparison_colors.len()])
                 },
             )
             .plot(
@@ -72,7 +72,7 @@ pub fn line_comparison(
                 |p| {
                     p.set(PointType::FilledCircle)
                         .set(POINT_SIZE)
-                        .set(COMPARISON_COLORS[i % NUM_COLORS])
+                        .set(colors.comparison_colors[i % colors.comparison_colors.len()])
                 },
             );
 
@@ -83,6 +83,7 @@ pub fn line_comparison(
 }
 
 pub fn violin(
+    colors: &Colors,
     title: &str,
     unit: &str,
     axis_scale: AxisScale,
@@ -120,9 +121,11 @@ pub fn violin(
             if is_first {
                 is_first = false;
 
-                c.set(DARK_BLUE).set(Label("PDF")).set(Opacity(0.25))
+                c.set(colors.current_sample)
+                    .set(Label("PDF"))
+                    .set(Opacity(0.45))
             } else {
-                c.set(DARK_BLUE).set(Opacity(0.25))
+                c.set(colors.current_sample).set(Opacity(0.45))
             }
         });
     }

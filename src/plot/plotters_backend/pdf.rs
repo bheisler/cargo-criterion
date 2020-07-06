@@ -1,6 +1,4 @@
-use crate::plot::plotters_backend::{
-    DARK_BLUE, DARK_ORANGE, DARK_RED, DEFAULT_FONT, POINT_SIZE, SIZE,
-};
+use crate::plot::plotters_backend::{Colors, DEFAULT_FONT, POINT_SIZE, SIZE};
 use crate::plot::{FilledCurve, Line, Points, Size, VerticalLine};
 use crate::report::BenchmarkId;
 use crate::stats::univariate::Sample;
@@ -10,6 +8,7 @@ use plotters::style::RGBAColor;
 use std::path::PathBuf;
 
 pub fn pdf_full(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
     path: PathBuf,
@@ -63,29 +62,32 @@ pub fn pdf_full(
         .draw_secondary_series(AreaSeries::new(
             pdf.to_points(),
             0.0,
-            DARK_BLUE.mix(0.5).filled(),
+            colors.current_sample.mix(0.5).filled(),
         ))
         .unwrap()
         .label("PDF")
         .legend(|(x, y)| {
-            Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_BLUE.mix(0.5).filled())
+            Rectangle::new(
+                [(x, y - 5), (x + 20, y + 5)],
+                colors.current_sample.mix(0.5).filled(),
+            )
         });
 
     chart
         .draw_series(std::iter::once(PathElement::new(
             mean.to_line_vec(max_iters),
-            &DARK_BLUE,
+            &colors.not_an_outlier,
         )))
         .unwrap()
         .label("Mean")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.not_an_outlier));
 
     chart
         .draw_series(vec![
-            PathElement::new(low_mild.to_line_vec(max_iters), &DARK_ORANGE),
-            PathElement::new(high_mild.to_line_vec(max_iters), &DARK_ORANGE),
-            PathElement::new(low_severe.to_line_vec(max_iters), &DARK_RED),
-            PathElement::new(high_severe.to_line_vec(max_iters), &DARK_RED),
+            PathElement::new(low_mild.to_line_vec(max_iters), &colors.mild_outlier),
+            PathElement::new(high_mild.to_line_vec(max_iters), &colors.mild_outlier),
+            PathElement::new(low_severe.to_line_vec(max_iters), &colors.severe_outlier),
+            PathElement::new(high_severe.to_line_vec(max_iters), &colors.severe_outlier),
         ])
         .unwrap();
 
@@ -99,13 +101,24 @@ pub fn pdf_full(
             .legend(move |(x, y)| Circle::new((x + 10, y), POINT_SIZE, color.filled()));
     };
 
-    draw_data_point_series(not_outlier, DARK_BLUE.to_rgba(), "\"Clean\" sample");
-    draw_data_point_series(mild, RGBColor(255, 127, 0).to_rgba(), "Mild outliers");
-    draw_data_point_series(severe, DARK_RED.to_rgba(), "Severe outliers");
+    draw_data_point_series(
+        not_outlier,
+        colors.not_an_outlier.to_rgba(),
+        "\"Clean\" sample",
+    );
+    draw_data_point_series(mild, colors.mild_outlier.to_rgba(), "Mild outliers");
+    draw_data_point_series(severe, colors.severe_outlier.to_rgba(), "Severe outliers");
     chart.configure_series_labels().draw().unwrap();
 }
 
-pub fn pdf_thumbnail(size: Option<Size>, path: PathBuf, unit: &str, mean: Line, pdf: FilledCurve) {
+pub fn pdf_thumbnail(
+    colors: &Colors,
+    size: Option<Size>,
+    path: PathBuf,
+    unit: &str,
+    mean: Line,
+    pdf: FilledCurve,
+) {
     let xs_ = Sample::new(pdf.xs);
     let ys_ = Sample::new(pdf.ys_1);
 
@@ -136,19 +149,20 @@ pub fn pdf_thumbnail(size: Option<Size>, path: PathBuf, unit: &str, mean: Line, 
         .draw_series(AreaSeries::new(
             pdf.to_points(),
             0.0,
-            DARK_BLUE.mix(0.25).filled(),
+            colors.current_sample.mix(0.25).filled(),
         ))
         .unwrap();
 
     chart
         .draw_series(std::iter::once(PathElement::new(
             mean.to_line_vec(),
-            DARK_BLUE.filled().stroke_width(2),
+            colors.current_sample.filled().stroke_width(2),
         )))
         .unwrap();
 }
 
 pub fn pdf_comparison(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
     path: PathBuf,
@@ -194,41 +208,49 @@ pub fn pdf_comparison(
         .draw_series(AreaSeries::new(
             base_pdf.to_points(),
             y_range.start,
-            DARK_RED.mix(0.5).filled(),
+            colors.previous_sample.mix(0.5).filled(),
         ))
         .unwrap()
         .label("Base PDF")
-        .legend(|(x, y)| Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_RED.mix(0.5).filled()));
+        .legend(|(x, y)| {
+            Rectangle::new(
+                [(x, y - 5), (x + 20, y + 5)],
+                colors.previous_sample.mix(0.5).filled(),
+            )
+        });
 
     chart
         .draw_series(AreaSeries::new(
             current_pdf.to_points(),
             y_range.start,
-            DARK_BLUE.mix(0.5).filled(),
+            colors.current_sample.mix(0.5).filled(),
         ))
         .unwrap()
         .label("New PDF")
         .legend(|(x, y)| {
-            Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_BLUE.mix(0.5).filled())
+            Rectangle::new(
+                [(x, y - 5), (x + 20, y + 5)],
+                colors.current_sample.mix(0.5).filled(),
+            )
         });
 
     chart
         .draw_series(std::iter::once(PathElement::new(
             base_mean.to_line_vec(),
-            DARK_RED.filled().stroke_width(2),
+            colors.previous_sample.filled().stroke_width(2),
         )))
         .unwrap()
         .label("Base Mean")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_RED));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.previous_sample));
 
     chart
         .draw_series(std::iter::once(PathElement::new(
             current_mean.to_line_vec(),
-            DARK_BLUE.filled().stroke_width(2),
+            colors.current_sample.filled().stroke_width(2),
         )))
         .unwrap()
         .label("New Mean")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.current_sample));
 
     if !is_thumbnail {
         chart.configure_series_labels().draw().unwrap();

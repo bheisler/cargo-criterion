@@ -1,7 +1,5 @@
 use crate::connection::AxisScale;
-use crate::plot::plotters_backend::{
-    COMPARISON_COLORS, DARK_BLUE, DEFAULT_FONT, NUM_COLORS, POINT_SIZE, SIZE,
-};
+use crate::plot::plotters_backend::{Colors, DEFAULT_FONT, POINT_SIZE, SIZE};
 use crate::plot::LineCurve;
 use crate::report::ValueType;
 use plotters::coord::{AsRangedCoord, Shift};
@@ -9,6 +7,7 @@ use plotters::prelude::*;
 use std::path::PathBuf;
 
 pub fn line_comparison(
+    colors: &Colors,
     path: PathBuf,
     title: &str,
     unit: &str,
@@ -26,10 +25,11 @@ pub fn line_comparison(
         .unwrap();
 
     match axis_scale {
-        AxisScale::Linear => {
-            draw_line_comparison_figure(root_area, &unit, x_range, y_range, value_type, lines)
-        }
+        AxisScale::Linear => draw_line_comparison_figure(
+            colors, root_area, &unit, x_range, y_range, value_type, lines,
+        ),
         AxisScale::Logarithmic => draw_line_comparison_figure(
+            colors,
             root_area,
             &unit,
             LogRange(x_range),
@@ -41,6 +41,7 @@ pub fn line_comparison(
 }
 
 fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = f64>>(
+    colors: &Colors,
     root_area: DrawingArea<SVGBackend, Shift>,
     y_unit: &str,
     x_range: XR,
@@ -74,7 +75,7 @@ fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
             .draw_series(
                 LineSeries::new(
                     curve.to_points(),
-                    COMPARISON_COLORS[id % NUM_COLORS].filled(),
+                    colors.comparison_colors[id % colors.comparison_colors.len()].filled(),
                 )
                 .point_size(POINT_SIZE),
             )
@@ -84,7 +85,7 @@ fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
             series.label(name).legend(move |(x, y)| {
                 Rectangle::new(
                     [(x, y - 5), (x + 20, y + 5)],
-                    COMPARISON_COLORS[id % NUM_COLORS].filled(),
+                    colors.comparison_colors[id % colors.comparison_colors.len()].filled(),
                 )
             });
         }
@@ -98,6 +99,7 @@ fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
 }
 
 pub fn violin(
+    colors: &Colors,
     path: PathBuf,
     title: &str,
     unit: &str,
@@ -116,14 +118,15 @@ pub fn violin(
         .unwrap();
 
     match axis_scale {
-        AxisScale::Linear => draw_violin_figure(root_area, &unit, x_range, y_range, lines),
+        AxisScale::Linear => draw_violin_figure(colors, root_area, &unit, x_range, y_range, lines),
         AxisScale::Logarithmic => {
-            draw_violin_figure(root_area, &unit, LogRange(x_range), y_range, lines)
+            draw_violin_figure(colors, root_area, &unit, LogRange(x_range), y_range, lines)
         }
     }
 }
 
 fn draw_violin_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = f64>>(
+    colors: &Colors,
     root_area: DrawingArea<SVGBackend, Shift>,
     unit: &str,
     x_range: XR,
@@ -155,7 +158,7 @@ fn draw_violin_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = 
             .draw_series(AreaSeries::new(
                 curve.to_points().map(|(x, y)| (x, base + y / 2.0)),
                 base,
-                &DARK_BLUE.mix(0.25),
+                &colors.current_sample.mix(0.45),
             ))
             .unwrap();
 
@@ -163,7 +166,7 @@ fn draw_violin_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = 
             .draw_series(AreaSeries::new(
                 curve.to_points().map(|(x, y)| (x, base - y / 2.0)),
                 base,
-                &DARK_BLUE.mix(0.25),
+                &colors.current_sample.mix(0.45),
             ))
             .unwrap();
     }

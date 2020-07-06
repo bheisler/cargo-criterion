@@ -1,5 +1,5 @@
 use crate::plot::gnuplot_backend::{
-    gnuplot_escape, DARK_BLUE, DARK_ORANGE, DARK_RED, DEFAULT_FONT, LINEWIDTH, POINT_SIZE, SIZE,
+    gnuplot_escape, Colors, DEFAULT_FONT, LINEWIDTH, POINT_SIZE, SIZE,
 };
 use crate::plot::Size;
 use crate::plot::{FilledCurve as FilledArea, Line, Points as PointPlot, VerticalLine};
@@ -8,6 +8,7 @@ use crate::stats::univariate::Sample;
 use criterion_plot::prelude::*;
 
 pub fn pdf_full(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
     unit: &str,
@@ -50,13 +51,13 @@ pub fn pdf_full(
             },
             |c| {
                 c.set(Axes::BottomXRightY)
-                    .set(DARK_BLUE)
+                    .set(colors.current_sample)
                     .set(Label("PDF"))
                     .set(Opacity(0.25))
             },
         )
         .plot(to_lines!(mean, max_iters), |c| {
-            c.set(DARK_BLUE)
+            c.set(colors.not_an_outlier)
                 .set(LINEWIDTH)
                 .set(LineType::Dash)
                 .set(Label("Mean"))
@@ -67,7 +68,7 @@ pub fn pdf_full(
                 y: not_outlier.ys,
             },
             |c| {
-                c.set(DARK_BLUE)
+                c.set(colors.not_an_outlier)
                     .set(Label("\"Clean\" sample"))
                     .set(PointType::FilledCircle)
                     .set(POINT_SIZE)
@@ -79,7 +80,7 @@ pub fn pdf_full(
                 y: mild.ys,
             },
             |c| {
-                c.set(DARK_ORANGE)
+                c.set(colors.mild_outlier)
                     .set(Label("Mild outliers"))
                     .set(POINT_SIZE)
                     .set(PointType::FilledCircle)
@@ -91,29 +92,43 @@ pub fn pdf_full(
                 y: severe.ys,
             },
             |c| {
-                c.set(DARK_RED)
+                c.set(colors.severe_outlier)
                     .set(Label("Severe outliers"))
                     .set(POINT_SIZE)
                     .set(PointType::FilledCircle)
             },
         )
         .plot(to_lines!(low_mild, max_iters), |c| {
-            c.set(DARK_ORANGE).set(LINEWIDTH).set(LineType::Dash)
+            c.set(colors.mild_outlier)
+                .set(LINEWIDTH)
+                .set(LineType::Dash)
         })
         .plot(to_lines!(high_mild, max_iters), |c| {
-            c.set(DARK_ORANGE).set(LINEWIDTH).set(LineType::Dash)
+            c.set(colors.mild_outlier)
+                .set(LINEWIDTH)
+                .set(LineType::Dash)
         })
         .plot(to_lines!(low_severe, max_iters), |c| {
-            c.set(DARK_RED).set(LINEWIDTH).set(LineType::Dash)
+            c.set(colors.severe_outlier)
+                .set(LINEWIDTH)
+                .set(LineType::Dash)
         })
         .plot(to_lines!(high_severe, max_iters), |c| {
-            c.set(DARK_RED).set(LINEWIDTH).set(LineType::Dash)
+            c.set(colors.severe_outlier)
+                .set(LINEWIDTH)
+                .set(LineType::Dash)
         });
     figure.set(Title(gnuplot_escape(id.as_title())));
     figure
 }
 
-pub fn pdf_thumbnail(size: Option<Size>, unit: &str, mean: Line, pdf: FilledArea) -> Figure {
+pub fn pdf_thumbnail(
+    colors: &Colors,
+    size: Option<Size>,
+    unit: &str,
+    mean: Line,
+    pdf: FilledArea,
+) -> Figure {
     let xs_ = Sample::new(pdf.xs);
     let ys_ = Sample::new(pdf.ys_1);
     let y_limit = ys_.max() * 1.1;
@@ -140,19 +155,22 @@ pub fn pdf_thumbnail(size: Option<Size>, unit: &str, mean: Line, pdf: FilledArea
             },
             |c| {
                 c.set(Axes::BottomXRightY)
-                    .set(DARK_BLUE)
+                    .set(colors.current_sample)
                     .set(Label("PDF"))
                     .set(Opacity(0.25))
             },
         )
         .plot(to_lines!(mean), |c| {
-            c.set(DARK_BLUE).set(LINEWIDTH).set(Label("Mean"))
+            c.set(colors.current_sample)
+                .set(LINEWIDTH)
+                .set(Label("Mean"))
         });
 
     figure
 }
 
 pub fn pdf_comparison(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
     is_thumbnail: bool,
@@ -182,10 +200,16 @@ pub fn pdf_comparison(
                 y1: base_pdf.ys_1,
                 y2: base_pdf.ys_2,
             },
-            |c| c.set(DARK_RED).set(Label("Base PDF")).set(Opacity(0.5)),
+            |c| {
+                c.set(colors.previous_sample)
+                    .set(Label("Base PDF"))
+                    .set(Opacity(0.5))
+            },
         )
         .plot(to_lines!(base_mean), |c| {
-            c.set(DARK_RED).set(Label("Base Mean")).set(LINEWIDTH)
+            c.set(colors.previous_sample)
+                .set(Label("Base Mean"))
+                .set(LINEWIDTH)
         })
         .plot(
             FilledCurve {
@@ -193,10 +217,16 @@ pub fn pdf_comparison(
                 y1: current_pdf.ys_1,
                 y2: current_pdf.ys_2,
             },
-            |c| c.set(DARK_BLUE).set(Label("New PDF")).set(Opacity(0.5)),
+            |c| {
+                c.set(colors.current_sample)
+                    .set(Label("New PDF"))
+                    .set(Opacity(0.5))
+            },
         )
         .plot(to_lines!(current_mean), |c| {
-            c.set(DARK_BLUE).set(Label("New Mean")).set(LINEWIDTH)
+            c.set(colors.current_sample)
+                .set(Label("New Mean"))
+                .set(LINEWIDTH)
         });
 
     if is_thumbnail {

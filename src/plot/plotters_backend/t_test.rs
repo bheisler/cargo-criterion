@@ -1,10 +1,11 @@
-use crate::plot::plotters_backend::{DARK_BLUE, DEFAULT_FONT, SIZE};
+use crate::plot::plotters_backend::{Colors, DEFAULT_FONT, SIZE};
 use crate::plot::{FilledCurve, Size, VerticalLine};
 use crate::report::BenchmarkId;
 use plotters::prelude::*;
 use std::path::PathBuf;
 
 pub fn t_test(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
     path: PathBuf,
@@ -41,22 +42,25 @@ pub fn t_test(
         .draw_series(AreaSeries::new(
             t_distribution.to_points(),
             0.0,
-            &DARK_BLUE.mix(0.25),
+            &colors.current_sample.mix(0.25),
         ))
         .unwrap()
         .label("t distribution")
         .legend(|(x, y)| {
-            Rectangle::new([(x, y - 5), (x + 20, y + 5)], DARK_BLUE.mix(0.25).filled())
+            Rectangle::new(
+                [(x, y - 5), (x + 20, y + 5)],
+                colors.current_sample.mix(0.25).filled(),
+            )
         });
 
     chart
         .draw_series(std::iter::once(PathElement::new(
             t.to_line_vec(y_range.end),
-            DARK_BLUE.filled().stroke_width(2),
+            colors.current_sample.filled().stroke_width(2),
         )))
         .unwrap()
         .label("t statistic")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &DARK_BLUE));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.current_sample));
 
     chart.configure_series_labels().draw().unwrap();
 }

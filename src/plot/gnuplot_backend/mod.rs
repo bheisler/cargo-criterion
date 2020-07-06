@@ -43,21 +43,36 @@ static SIZE: Size = Size(1280, 720);
 const LINEWIDTH: LineWidth = LineWidth(2.);
 const POINT_SIZE: PointSize = PointSize(0.75);
 
-const DARK_BLUE: Color = Color::Rgb(31, 120, 180);
-const DARK_ORANGE: Color = Color::Rgb(255, 127, 0);
-const DARK_RED: Color = Color::Rgb(227, 26, 28);
-
-const NUM_COLORS: usize = 8;
-static COMPARISON_COLORS: [Color; NUM_COLORS] = [
-    Color::Rgb(178, 34, 34),
-    Color::Rgb(46, 139, 87),
-    Color::Rgb(0, 139, 139),
-    Color::Rgb(255, 215, 0),
-    Color::Rgb(0, 0, 139),
-    Color::Rgb(220, 20, 60),
-    Color::Rgb(139, 0, 139),
-    Color::Rgb(0, 255, 127),
-];
+pub struct Colors {
+    pub current_sample: Color,
+    pub previous_sample: Color,
+    pub not_an_outlier: Color,
+    pub mild_outlier: Color,
+    pub severe_outlier: Color,
+    pub comparison_colors: Vec<Color>,
+}
+impl From<crate::config::Color> for Color {
+    fn from(other: crate::config::Color) -> Self {
+        Color::Rgb(other.r, other.g, other.b)
+    }
+}
+impl From<&crate::config::Colors> for Colors {
+    fn from(other: &crate::config::Colors) -> Self {
+        Colors {
+            current_sample: other.current_sample.into(),
+            previous_sample: other.previous_sample.into(),
+            not_an_outlier: other.not_an_outlier.into(),
+            mild_outlier: other.mild_outlier.into(),
+            severe_outlier: other.severe_outlier.into(),
+            comparison_colors: other
+                .comparison_colors
+                .iter()
+                .copied()
+                .map(Color::from)
+                .collect(),
+        }
+    }
+}
 
 impl AxisScale {
     fn to_gnuplot(self) -> Scale {
@@ -86,14 +101,15 @@ impl From<Size> for criterion_plot::Size {
     }
 }
 
-#[derive(Default)]
 pub struct Gnuplot {
     process_list: Vec<Child>,
+    colors: Colors,
 }
 impl Gnuplot {
-    pub fn new() -> Gnuplot {
+    pub fn new(colors: &crate::config::Colors) -> Gnuplot {
         Gnuplot {
             process_list: vec![],
+            colors: colors.into(),
         }
     }
 }
@@ -111,6 +127,7 @@ impl PlottingBackend for Gnuplot {
         point_estimate: Line,
     ) {
         let mut figure = distributions::abs_distribution(
+            &self.colors,
             id,
             statistic,
             size,
@@ -137,6 +154,7 @@ impl PlottingBackend for Gnuplot {
         noise_threshold: Rectangle,
     ) {
         let mut figure = distributions::rel_distribution(
+            &self.colors,
             id,
             statistic,
             size,
@@ -163,6 +181,7 @@ impl PlottingBackend for Gnuplot {
         base_times: Option<PointPlot>,
     ) {
         let mut figure = iteration_times::iteration_times(
+            &self.colors,
             id,
             size,
             unit,
@@ -190,6 +209,7 @@ impl PlottingBackend for Gnuplot {
         confidence_interval: FilledArea,
     ) {
         let mut figure = regression::regression(
+            &self.colors,
             id,
             size,
             is_thumbnail,
@@ -221,6 +241,7 @@ impl PlottingBackend for Gnuplot {
         base_confidence_interval: FilledArea,
     ) {
         let mut figure = regression::regression_comparison(
+            &self.colors,
             id,
             size,
             is_thumbnail,
@@ -252,7 +273,17 @@ impl PlottingBackend for Gnuplot {
         points: (PointPlot, PointPlot, PointPlot),
     ) {
         let mut figure = pdf::pdf_full(
-            id, size, unit, y_label, y_scale, max_iters, pdf, mean, fences, points,
+            &self.colors,
+            id,
+            size,
+            unit,
+            y_label,
+            y_scale,
+            max_iters,
+            pdf,
+            mean,
+            fences,
+            points,
         );
 
         debug_script(&path, &figure);
@@ -268,7 +299,7 @@ impl PlottingBackend for Gnuplot {
         mean: Line,
         pdf: FilledArea,
     ) {
-        let mut figure = pdf::pdf_thumbnail(size, unit, mean, pdf);
+        let mut figure = pdf::pdf_thumbnail(&self.colors, size, unit, mean, pdf);
         debug_script(&path, &figure);
         self.process_list
             .push(figure.set(Output(path)).draw().unwrap())
@@ -287,6 +318,7 @@ impl PlottingBackend for Gnuplot {
         base_pdf: FilledArea,
     ) {
         let mut figure = pdf::pdf_comparison(
+            &self.colors,
             id,
             size,
             is_thumbnail,
@@ -309,7 +341,7 @@ impl PlottingBackend for Gnuplot {
         t: VerticalLine,
         t_distribution: FilledArea,
     ) {
-        let mut figure = t_test::t_test(id, size, t, t_distribution);
+        let mut figure = t_test::t_test(&self.colors, id, size, t, t_distribution);
 
         debug_script(&path, &figure);
         self.process_list
@@ -325,7 +357,8 @@ impl PlottingBackend for Gnuplot {
         axis_scale: AxisScale,
         lines: &[(Option<&String>, LineCurve)],
     ) {
-        let mut figure = summary::line_comparison(title, unit, value_type, axis_scale, lines);
+        let mut figure =
+            summary::line_comparison(&self.colors, title, unit, value_type, axis_scale, lines);
 
         debug_script(&path, &figure);
         self.process_list
@@ -340,7 +373,7 @@ impl PlottingBackend for Gnuplot {
         axis_scale: AxisScale,
         lines: &[(&str, LineCurve)],
     ) {
-        let mut figure = summary::violin(title, unit, axis_scale, lines);
+        let mut figure = summary::violin(&self.colors, title, unit, axis_scale, lines);
         debug_script(&path, &figure);
         self.process_list
             .push(figure.set(Output(path)).draw().unwrap())

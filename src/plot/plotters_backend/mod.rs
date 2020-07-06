@@ -19,21 +19,36 @@ static DEFAULT_FONT: FontFamily = FontFamily::SansSerif;
 static SIZE: Size = Size(960, 540);
 static POINT_SIZE: u32 = 3;
 
-const DARK_BLUE: RGBColor = RGBColor(31, 120, 180);
-const DARK_ORANGE: RGBColor = RGBColor(255, 127, 0);
-const DARK_RED: RGBColor = RGBColor(227, 26, 28);
-
-const NUM_COLORS: usize = 8;
-static COMPARISON_COLORS: [RGBColor; NUM_COLORS] = [
-    RGBColor(178, 34, 34),
-    RGBColor(46, 139, 87),
-    RGBColor(0, 139, 139),
-    RGBColor(255, 215, 0),
-    RGBColor(0, 0, 139),
-    RGBColor(220, 20, 60),
-    RGBColor(139, 0, 139),
-    RGBColor(0, 255, 127),
-];
+pub struct Colors {
+    pub current_sample: RGBColor,
+    pub previous_sample: RGBColor,
+    pub not_an_outlier: RGBColor,
+    pub mild_outlier: RGBColor,
+    pub severe_outlier: RGBColor,
+    pub comparison_colors: Vec<RGBColor>,
+}
+impl From<crate::config::Color> for RGBColor {
+    fn from(other: crate::config::Color) -> Self {
+        RGBColor(other.r, other.g, other.b)
+    }
+}
+impl From<&crate::config::Colors> for Colors {
+    fn from(other: &crate::config::Colors) -> Self {
+        Colors {
+            current_sample: other.current_sample.into(),
+            previous_sample: other.previous_sample.into(),
+            not_an_outlier: other.not_an_outlier.into(),
+            mild_outlier: other.mild_outlier.into(),
+            severe_outlier: other.severe_outlier.into(),
+            comparison_colors: other
+                .comparison_colors
+                .iter()
+                .copied()
+                .map(RGBColor::from)
+                .collect(),
+        }
+    }
+}
 
 impl From<Size> for (u32, u32) {
     fn from(other: Size) -> Self {
@@ -68,8 +83,16 @@ impl<'a> Points<'a> {
     }
 }
 
-#[derive(Default)]
-pub struct PlottersBackend;
+pub struct PlottersBackend {
+    colors: Colors,
+}
+impl PlottersBackend {
+    pub fn new(colors: &crate::config::Colors) -> Self {
+        PlottersBackend {
+            colors: colors.into(),
+        }
+    }
+}
 impl PlottingBackend for PlottersBackend {
     fn abs_distribution(
         &mut self,
@@ -84,6 +107,7 @@ impl PlottingBackend for PlottersBackend {
         point_estimate: Line,
     ) {
         distributions::abs_distribution(
+            &self.colors,
             id,
             statistic,
             size,
@@ -108,6 +132,7 @@ impl PlottingBackend for PlottersBackend {
         noise_threshold: RectangleArea,
     ) {
         distributions::rel_distribution(
+            &self.colors,
             id,
             statistic,
             size,
@@ -130,6 +155,7 @@ impl PlottingBackend for PlottersBackend {
         base_times: Option<Points>,
     ) {
         iteration_times::iteration_times(
+            &self.colors,
             id,
             size,
             path,
@@ -154,6 +180,7 @@ impl PlottingBackend for PlottersBackend {
         confidence_interval: FilledCurve,
     ) {
         regression::regression(
+            &self.colors,
             id,
             size,
             path,
@@ -182,6 +209,7 @@ impl PlottingBackend for PlottersBackend {
         base_confidence_interval: FilledCurve,
     ) {
         regression::regression_comparison(
+            &self.colors,
             id,
             size,
             path,
@@ -211,7 +239,18 @@ impl PlottingBackend for PlottersBackend {
         points: (Points, Points, Points),
     ) {
         pdf::pdf_full(
-            id, size, path, unit, y_label, y_scale, max_iters, pdf, mean, fences, points,
+            &self.colors,
+            id,
+            size,
+            path,
+            unit,
+            y_label,
+            y_scale,
+            max_iters,
+            pdf,
+            mean,
+            fences,
+            points,
         );
     }
 
@@ -223,7 +262,7 @@ impl PlottingBackend for PlottersBackend {
         mean: Line,
         pdf: FilledCurve,
     ) {
-        pdf::pdf_thumbnail(size, path, unit, mean, pdf);
+        pdf::pdf_thumbnail(&self.colors, size, path, unit, mean, pdf);
     }
 
     fn pdf_comparison(
@@ -239,6 +278,7 @@ impl PlottingBackend for PlottersBackend {
         base_pdf: FilledCurve,
     ) {
         pdf::pdf_comparison(
+            &self.colors,
             id,
             size,
             path,
@@ -259,7 +299,7 @@ impl PlottingBackend for PlottersBackend {
         t: VerticalLine,
         t_distribution: FilledCurve,
     ) {
-        t_test::t_test(id, size, path, t, t_distribution);
+        t_test::t_test(&self.colors, id, size, path, t, t_distribution);
     }
 
     fn line_comparison(
@@ -271,7 +311,15 @@ impl PlottingBackend for PlottersBackend {
         axis_scale: AxisScale,
         lines: &[(Option<&String>, LineCurve)],
     ) {
-        summary::line_comparison(path, title, unit, value_type, axis_scale, lines);
+        summary::line_comparison(
+            &self.colors,
+            path,
+            title,
+            unit,
+            value_type,
+            axis_scale,
+            lines,
+        );
     }
 
     fn violin(
@@ -282,7 +330,7 @@ impl PlottingBackend for PlottersBackend {
         axis_scale: AxisScale,
         lines: &[(&str, LineCurve)],
     ) {
-        summary::violin(path, title, unit, axis_scale, lines);
+        summary::violin(&self.colors, path, title, unit, axis_scale, lines);
     }
 
     fn wait(&mut self) {}

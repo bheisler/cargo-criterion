@@ -1,4 +1,4 @@
-use crate::plot::plotters_backend::{DARK_BLUE, DARK_RED, DEFAULT_FONT, POINT_SIZE, SIZE};
+use crate::plot::plotters_backend::{Colors, DEFAULT_FONT, POINT_SIZE, SIZE};
 use crate::plot::{Points, Size};
 use crate::report::BenchmarkId;
 use crate::stats::univariate::Sample;
@@ -7,6 +7,7 @@ use plotters::prelude::*;
 use std::path::PathBuf;
 
 pub fn iteration_times(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
     path: PathBuf,
@@ -52,21 +53,21 @@ pub fn iteration_times(
     chart
         .draw_series(
             (current_times.to_points())
-                .map(|(x, y)| Circle::new((x, y), POINT_SIZE, DARK_BLUE.filled())),
+                .map(|(x, y)| Circle::new((x, y), POINT_SIZE, colors.current_sample.filled())),
         )
         .unwrap()
         .label("Current")
-        .legend(|(x, y)| Circle::new((x + 10, y), POINT_SIZE, DARK_BLUE.filled()));
+        .legend(|(x, y)| Circle::new((x + 10, y), POINT_SIZE, colors.current_sample.filled()));
 
     if let Some(base_times) = base_times {
         chart
             .draw_series(
                 (base_times.to_points())
-                    .map(|(x, y)| Circle::new((x, y), POINT_SIZE, DARK_RED.filled())),
+                    .map(|(x, y)| Circle::new((x, y), POINT_SIZE, colors.previous_sample.filled())),
             )
             .unwrap()
             .label("Base")
-            .legend(|(x, y)| Circle::new((x + 10, y), POINT_SIZE, DARK_RED.filled()));
+            .legend(|(x, y)| Circle::new((x + 10, y), POINT_SIZE, colors.previous_sample.filled()));
     }
 
     if !is_thumbnail {

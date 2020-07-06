@@ -1,6 +1,4 @@
-use crate::plot::gnuplot_backend::{
-    gnuplot_escape, DARK_BLUE, DARK_RED, DEFAULT_FONT, LINEWIDTH, SIZE,
-};
+use crate::plot::gnuplot_backend::{gnuplot_escape, Colors, DEFAULT_FONT, LINEWIDTH, SIZE};
 use crate::plot::Points as PointPlot;
 use crate::plot::Size;
 use crate::plot::{FilledCurve as FilledArea, Line};
@@ -8,6 +6,7 @@ use crate::report::BenchmarkId;
 use criterion_plot::prelude::*;
 
 pub fn regression(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
     is_thumbnail: bool,
@@ -37,14 +36,14 @@ pub fn regression(
                 y: sample.ys,
             },
             |c| {
-                c.set(DARK_BLUE)
+                c.set(colors.current_sample)
                     .set(Label("Sample"))
                     .set(PointSize(0.5))
                     .set(PointType::FilledCircle)
             },
         )
         .plot(to_lines!(regression), |c| {
-            c.set(DARK_BLUE)
+            c.set(colors.current_sample)
                 .set(LINEWIDTH)
                 .set(Label("Linear regression"))
                 .set(LineType::Solid)
@@ -56,7 +55,7 @@ pub fn regression(
                 y2: confidence_interval.ys_2,
             },
             |c| {
-                c.set(DARK_BLUE)
+                c.set(colors.current_sample)
                     .set(Label("Confidence interval"))
                     .set(Opacity(0.25))
             },
@@ -77,6 +76,7 @@ pub fn regression(
 }
 
 pub fn regression_comparison(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
     is_thumbnail: bool,
@@ -112,7 +112,7 @@ pub fn regression_comparison(
                 y1: base_confidence_interval.ys_1,
                 y2: base_confidence_interval.ys_2,
             },
-            |c| c.set(DARK_RED).set(Opacity(0.25)),
+            |c| c.set(colors.previous_sample).set(Opacity(0.25)),
         )
         .plot(
             FilledCurve {
@@ -120,16 +120,16 @@ pub fn regression_comparison(
                 y1: current_confidence_interval.ys_1,
                 y2: current_confidence_interval.ys_2,
             },
-            |c| c.set(DARK_BLUE).set(Opacity(0.25)),
+            |c| c.set(colors.current_sample).set(Opacity(0.25)),
         )
         .plot(to_lines!(base_regression), |c| {
-            c.set(DARK_RED)
+            c.set(colors.previous_sample)
                 .set(LINEWIDTH)
                 .set(Label("Base sample"))
                 .set(LineType::Solid)
         })
         .plot(to_lines!(current_regression), |c| {
-            c.set(DARK_BLUE)
+            c.set(colors.current_sample)
                 .set(LINEWIDTH)
                 .set(Label("New sample"))
                 .set(LineType::Solid)

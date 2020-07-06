@@ -175,11 +175,11 @@ fn configure_cli_output(self_config: &crate::config::SelfConfig) -> crate::repor
 
 /// Configure and return a Gnuplot plotting backend, if available.
 #[cfg(feature = "gnuplot_backend")]
-fn gnuplot_plotter() -> Result<Box<dyn Plotter>, Error> {
+fn gnuplot_plotter(config: &SelfConfig) -> Result<Box<dyn Plotter>, Error> {
     match criterion_plot::version() {
         Ok(_) => {
             let generator = crate::plot::PlotGenerator {
-                backend: crate::plot::Gnuplot::new(),
+                backend: crate::plot::Gnuplot::new(&config.colors),
             };
             Ok(Box::new(generator))
         },
@@ -189,22 +189,22 @@ fn gnuplot_plotter() -> Result<Box<dyn Plotter>, Error> {
 
 /// Gnuplot support was not compiled in, so the gnuplot backend is not available.
 #[cfg(not(feature = "gnuplot_backend"))]
-fn gnuplot_plotter() -> Result<Box<dyn Plotter>, Error> {
+fn gnuplot_plotter(_: &SelfConfig) -> Result<Box<dyn Plotter>, Error> {
     anyhow::bail!("Gnuplot backend is disabled. To use gnuplot backend, install cargo-criterion with the 'gnuplot_backend' feature enabled")
 }
 
 /// Configure and return a Plotters plotting backend.
 #[cfg(feature = "plotters_backend")]
-fn plotters_plotter() -> Result<Box<dyn Plotter>, Error> {
+fn plotters_plotter(config: &SelfConfig) -> Result<Box<dyn Plotter>, Error> {
     let generator = crate::plot::PlotGenerator {
-        backend: crate::plot::PlottersBackend,
+        backend: crate::plot::PlottersBackend::new(&config.colors),
     };
     Ok(Box::new(generator))
 }
 
 /// Plotters support was not compiled in, so the plotters backend is not available.
 #[cfg(not(feature = "plotters_backend"))]
-fn plotters_plotter() -> Result<Box<dyn Plotter>, Error> {
+fn plotters_plotter(_: &SelfConfig) -> Result<Box<dyn Plotter>, Error> {
     anyhow::bail!("Plotters backend is disabled. To use plotters backend, install cargo-criterion with the 'plotters_backend' feature enabled")
 }
 
@@ -212,9 +212,11 @@ fn plotters_plotter() -> Result<Box<dyn Plotter>, Error> {
 #[cfg(any(feature = "gnuplot_backend", feature = "plotters_backend"))]
 fn get_plotter(config: &SelfConfig) -> Result<Option<Box<dyn Plotter>>, Error> {
     match config.plotting_backend {
-        PlottingBackend::Gnuplot => gnuplot_plotter().map(Some),
-        PlottingBackend::Plotters => plotters_plotter().map(Some),
-        PlottingBackend::Auto => gnuplot_plotter().or_else(|_| plotters_plotter()).map(Some),
+        PlottingBackend::Gnuplot => gnuplot_plotter(config).map(Some),
+        PlottingBackend::Plotters => plotters_plotter(config).map(Some),
+        PlottingBackend::Auto => gnuplot_plotter(config)
+            .or_else(|_| plotters_plotter(config))
+            .map(Some),
         PlottingBackend::Disabled => Ok(None),
     }
 }

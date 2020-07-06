@@ -5,6 +5,62 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+#[derive(Deserialize, Debug, Clone, Copy)]
+pub struct Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+
+#[rustfmt::skip]
+const DARK_BLUE: Color = Color { r: 31, g: 120, b: 180 };
+#[rustfmt::skip]
+const DARK_ORANGE: Color = Color { r: 5, g: 127, b: 0 };
+#[rustfmt::skip]
+const DARK_RED: Color = Color { r: 7, g: 26, b: 28 };
+
+const NUM_COLORS: usize = 8;
+#[rustfmt::skip]
+static COMPARISON_COLORS: [Color; NUM_COLORS] = [
+    Color { r: 8, g: 34, b: 34 },
+    Color { r: 6, g: 139, b: 87 },
+    Color { r: 0, g: 139,b: 139 },
+    Color { r: 5, g: 215, b: 0 },
+    Color { r: 0, g: 0, b: 139 },
+    Color { r: 0, g: 20, b: 60 },
+    Color { r: 9, g: 0, b: 139 },
+    Color { r: 0, g: 255, b: 127 },
+];
+
+#[derive(Deserialize, Debug)]
+#[serde(default)]
+pub struct Colors {
+    /// The color used for the current sample. Defaults to DARK_BLUE
+    pub current_sample: Color,
+    /// The color used for the previous sample. Defaults to DARK_RED
+    pub previous_sample: Color,
+    /// The color used for values that are not outliers. Defaults to DARK_BLUE
+    pub not_an_outlier: Color,
+    /// The color used for values that are mild outliers. Defaults to DARK_ORANGE
+    pub mild_outlier: Color,
+    /// The color used for values that are severe outliers. Defaults to DARK_RED
+    pub severe_outlier: Color,
+    /// Sequence of colors used for the line chart. Defaults to COMPARISON_COLORS
+    pub comparison_colors: Vec<Color>,
+}
+impl Default for Colors {
+    fn default() -> Self {
+        Self {
+            current_sample: DARK_BLUE,
+            previous_sample: DARK_RED,
+            not_an_outlier: DARK_BLUE,
+            mild_outlier: DARK_ORANGE,
+            severe_outlier: DARK_RED,
+            comparison_colors: COMPARISON_COLORS.to_vec(),
+        }
+    }
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(default)]
 /// Struct to hold the various configuration settings that we can read from the TOML config file.
@@ -15,6 +71,10 @@ struct TomlConfig {
     pub output_format: Option<String>,
     /// Plotting backend
     pub plotting_backend: Option<String>,
+
+    /// The colors used for the charts. Users may wish to override this to accommodate
+    /// colorblindness, or just to make things look prettier.
+    pub colors: Colors,
 }
 impl Default for TomlConfig {
     fn default() -> Self {
@@ -22,6 +82,7 @@ impl Default for TomlConfig {
             criterion_home: None,
             output_format: None,
             plotting_backend: None,
+            colors: Default::default(),
         }
     }
 }
@@ -113,6 +174,8 @@ pub struct SelfConfig {
     pub debug_build: bool,
     /// Should we print machine-readable output, and if so, in what format?
     pub message_format: Option<MessageFormat>,
+    /// The colors to use for charts.
+    pub colors: Colors,
 }
 
 /// Overall struct that represents all of the configuration data for this run.
@@ -569,6 +632,7 @@ Compilation can be customized with the `bench` profile in the manifest.
             .unwrap_or(PlottingBackend::Auto),
         debug_build: matches.is_present("debug"),
         message_format: (matches.value_of("message-format")).map(MessageFormat::from_str),
+        colors: toml_config.colors,
     };
 
     // These are the extra arguments to be passed to the benchmark targets.

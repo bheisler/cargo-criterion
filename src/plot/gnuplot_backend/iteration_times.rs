@@ -1,10 +1,11 @@
-use crate::plot::gnuplot_backend::{gnuplot_escape, DARK_BLUE, DARK_RED, DEFAULT_FONT, SIZE};
+use crate::plot::gnuplot_backend::{gnuplot_escape, Colors, DEFAULT_FONT, SIZE};
 use crate::plot::Points as PointPlot;
 use crate::plot::Size;
 use crate::report::BenchmarkId;
 use criterion_plot::prelude::*;
 
 pub fn iteration_times(
+    colors: &Colors,
     id: &BenchmarkId,
     size: Option<Size>,
 
@@ -30,7 +31,7 @@ pub fn iteration_times(
                 y: current_times.ys,
             },
             |c| {
-                c.set(DARK_BLUE)
+                c.set(colors.current_sample)
                     .set(Label("Current"))
                     .set(PointSize(0.5))
                     .set(PointType::FilledCircle)
@@ -44,7 +45,7 @@ pub fn iteration_times(
                 y: base_times.ys,
             },
             |c| {
-                c.set(DARK_RED)
+                c.set(colors.previous_sample)
                     .set(Label("Base"))
                     .set(PointSize(0.5))
                     .set(PointType::FilledCircle)
