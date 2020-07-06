@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 # [Unreleased]
 
+## [1.0.0-alpha3] - 2020.07-06
+### Added
+- The criterion.toml file can now be used to configure the colors used for the generated plots.
+
 ## [1.0.0-alpha2] - 2020-07-05
 ### Added
 - Initial version of cargo-criterion
@@ -33,4 +37,5 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [1.0.0-alpha1]: https://github.com/bheisler/cargo-criterion/compare/e5fa23b...1.0.0-alpha1
 [1.0.0-alpha2]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha1...1.0.0-alpha2
-[Unreleased]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha2...HEAD
+[1.0.0-alpha3]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha2...1.0.0-alpha3
+[Unreleased]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha3...HEAD

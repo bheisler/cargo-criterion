@@ -39,7 +39,7 @@ benefit from some of cargo-criterion's features.
 
 First install cargo-criterion:
 
-`cargo install cargo-criterion --version 1.0.0-alpha2`
+`cargo install cargo-criterion --version 1.0.0-alpha3`
 
 Then you can use it to run your Criterion-rs benchmarks:
 

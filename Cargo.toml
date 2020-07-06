@@ -1,6 +1,6 @@
 [package]
 name = "cargo-criterion"
-version = "1.0.0-alpha2"
+version = "1.0.0-alpha3"
 authors = ["Brook Heisler <redattack34@gmail.com>"]
 edition = "2018"
 
