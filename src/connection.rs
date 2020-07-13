@@ -7,7 +7,7 @@ use std::net::TcpStream;
 
 #[derive(Debug)]
 pub enum ConnectionError {
-    HelloFailed(&'static str),
+    HelloFailed(String),
 }
 impl std::fmt::Display for ConnectionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -35,7 +35,8 @@ impl ProtocolFormat {
     fn from_u16(format: u16) -> Result<Self, ConnectionError> {
         match format {
             1 => Ok(ProtocolFormat::CBOR),
-            _ => Err(ConnectionError::HelloFailed("Unknown format value sent by Criterion.rs benchmark; please update cargo-criterion.")),
+            other => Err(ConnectionError::HelloFailed(format!(
+                "Unknown format value {} sent by Criterion.rs benchmark; please update cargo-criterion.", other))),
         }
     }
 }
@@ -76,16 +77,21 @@ impl Connection {
         hello_buf[i + 1] = env!("CARGO_PKG_VERSION_MINOR").parse().unwrap();
         hello_buf[i + 2] = env!("CARGO_PKG_VERSION_PATCH").parse().unwrap();
 
-        socket.write_all(&hello_buf)?;
+        socket
+            .write_all(&hello_buf)
+            .context("Failed to send runner-hello message")?;
 
         // Read the benchmark hello message.
         let mut hello_buf = [0u8; BENCHMARK_HELLO_SIZE];
-        socket.read_exact(&mut hello_buf)?;
+        socket
+            .read_exact(&mut hello_buf)
+            .context("Failed to receive benchmark-hello message")?;
 
         if &hello_buf[0..BENCHMARK_MAGIC_NUMBER.len()] != BENCHMARK_MAGIC_NUMBER.as_bytes() {
-            return Err(
-                ConnectionError::HelloFailed("Not connected to a Criterion.rs benchmark.").into(),
-            );
+            return Err(ConnectionError::HelloFailed(
+                "Not connected to a Criterion.rs benchmark.".to_owned(),
+            )
+            .into());
         }
         let mut i = BENCHMARK_MAGIC_NUMBER.len();
         let criterion_rs_version = [hello_buf[i], hello_buf[i + 1], hello_buf[i + 2]];
