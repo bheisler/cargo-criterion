@@ -257,8 +257,11 @@ impl BenchTarget {
 
                     let saved_stats = model.get_last_sample(&id).cloned();
 
+                    let benchmark_config: crate::analysis::BenchmarkConfig =
+                        benchmark_config.into();
+
                     let measured_data = crate::analysis::analysis(
-                        &(benchmark_config).into(),
+                        &benchmark_config,
                         id.throughput.clone(),
                         crate::analysis::MeasuredValues {
                             iteration_count: &iters,
@@ -288,6 +291,11 @@ impl BenchTarget {
                     {
                         let formatter = crate::value_formatter::ValueFormatter::new(conn);
                         report.measurement_complete(&id, &context, &measured_data, &formatter);
+
+                        match model.load_history(&id) {
+                            Ok(history) => report.history(&context, &id, &history, &formatter),
+                            Err(e) => error!("Failed to load historical data: {:?}", e),
+                        }
                     }
                     return Ok(());
                 }

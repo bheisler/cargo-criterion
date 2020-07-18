@@ -9,6 +9,7 @@ use plotters::prelude::*;
 use std::path::PathBuf;
 
 mod distributions;
+mod history;
 mod iteration_times;
 mod pdf;
 mod regression;
@@ -331,6 +332,28 @@ impl PlottingBackend for PlottersBackend {
         lines: &[(&str, LineCurve)],
     ) {
         summary::violin(&self.colors, path, title, unit, axis_scale, lines);
+    }
+
+    fn history_plot(
+        &mut self,
+        id: &BenchmarkId,
+        size: Size,
+        path: PathBuf,
+        point_estimate: LineCurve,
+        confidence_interval: FilledCurve,
+        ids: &[String],
+        unit: &str,
+    ) {
+        history::history(
+            &self.colors,
+            id.as_title(),
+            size,
+            path,
+            point_estimate,
+            confidence_interval,
+            ids,
+            unit,
+        );
     }
 
     fn wait(&mut self) {}

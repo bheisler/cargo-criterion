@@ -1,6 +1,6 @@
 use crate::connection::Throughput;
-use crate::estimate::Estimates;
-use crate::report::{BenchmarkId, MeasurementData};
+use crate::estimate::{ChangeEstimates, Estimates};
+use crate::report::{BenchmarkId, ComparisonData, MeasurementData};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use linked_hash_map::LinkedHashMap;
@@ -57,17 +57,27 @@ pub struct Model {
     all_directories: HashSet<PathBuf>,
     // All of the known benchmark groups, stored in execution order (where possible).
     pub groups: LinkedHashMap<String, BenchmarkGroup>,
+
+    history_id: Option<String>,
+    history_description: Option<String>,
 }
 impl Model {
     /// Load the model from disk. The output directory is scanned for benchmark files. Any files
     /// found are loaded into the model so that we can include them in the reports even if this
     /// run doesn't execute that particular benchmark.
-    pub fn load(criterion_home: PathBuf, timeline: PathBuf) -> Model {
+    pub fn load(
+        criterion_home: PathBuf,
+        timeline: PathBuf,
+        history_id: Option<String>,
+        history_description: Option<String>,
+    ) -> Model {
         let mut model = Model {
             data_directory: path!(criterion_home, "data", timeline),
             all_titles: HashSet::new(),
             all_directories: HashSet::new(),
             groups: LinkedHashMap::new(),
+            history_id,
+            history_description,
         };
 
         for entry in WalkDir::new(&model.data_directory)
@@ -100,7 +110,7 @@ impl Model {
         let mut measurement_file = File::open(&measurement_path)
             .with_context(|| format!("Failed to open measurement file {:?}", measurement_path))?;
         let saved_stats: SavedStatistics = serde_cbor::from_reader(&mut measurement_file)
-            .with_context(|| format!("Failed to read benchmark file {:?}", measurement_path))?;
+            .with_context(|| format!("Failed to read measurement file {:?}", measurement_path))?;
 
         self.groups
             .entry(benchmark_record.id.group_id.clone())
@@ -156,6 +166,16 @@ impl Model {
             avg_values: analysis_results.avg_times.to_vec(),
             estimates: analysis_results.absolute_estimates.clone(),
             throughput: analysis_results.throughput.clone(),
+            changes: analysis_results
+                .comparison
+                .as_ref()
+                .map(|c| c.relative_estimates.clone()),
+            change_direction: analysis_results
+                .comparison
+                .as_ref()
+                .map(get_change_direction),
+            history_id: self.history_id.clone(),
+            history_description: self.history_description.clone(),
         };
 
         let measurement_path = dir.join(&measurement_name);
@@ -218,6 +238,42 @@ impl Model {
         self.groups.insert(group_name.to_owned(), group);
         self.groups.get(group_name).unwrap()
     }
+
+    pub fn load_history(&self, id: &BenchmarkId) -> Result<Vec<SavedStatistics>> {
+        let dir = path!(&self.data_directory, id.as_directory_name());
+
+        fn load_from(measurement_path: &Path) -> Result<SavedStatistics> {
+            let mut measurement_file = File::open(&measurement_path).with_context(|| {
+                format!("Failed to open measurement file {:?}", measurement_path)
+            })?;
+            serde_cbor::from_reader(&mut measurement_file)
+                .with_context(|| format!("Failed to read measurement file {:?}", measurement_path))
+        }
+
+        let mut stats = Vec::new();
+        for entry in WalkDir::new(dir)
+            .max_depth(1)
+            .into_iter()
+            // Ignore errors.
+            .filter_map(::std::result::Result::ok)
+        {
+            let name_str = entry.file_name().to_string_lossy();
+            if name_str.starts_with("measurement_") && name_str.ends_with(".cbor") {
+                match load_from(entry.path()) {
+                    Ok(saved_stats) => stats.push(saved_stats),
+                    Err(e) => error!(
+                        "Unexpected error loading benchmark history from file {}: {:?}",
+                        entry.path().display(),
+                        e
+                    ),
+                }
+            }
+        }
+
+        stats.sort_unstable_by_key(|st| st.datetime);
+
+        Ok(stats)
+    }
 }
 
 // These structs are saved to disk and may be read by future versions of cargo-criterion, so
@@ -268,11 +324,56 @@ struct BenchmarkRecord {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum ChangeDirection {
+    NoChange,
+    NotSignificant,
+    Improved,
+    Regressed,
+}
+
+fn get_change_direction(comp: &ComparisonData) -> ChangeDirection {
+    if comp.p_value < comp.significance_threshold {
+        return ChangeDirection::NoChange;
+    }
+
+    let ci = &comp.relative_estimates.mean.confidence_interval;
+    let lb = ci.lower_bound;
+    let ub = ci.upper_bound;
+    let noise = comp.noise_threshold;
+
+    if lb < -noise && ub < -noise {
+        ChangeDirection::Improved
+    } else if lb > noise && ub > noise {
+        ChangeDirection::Regressed
+    } else {
+        ChangeDirection::NotSignificant
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SavedStatistics {
+    // The timestamp of when these measurements were saved.
     pub datetime: DateTime<Utc>,
+    // The number of iterations in each sample
     pub iterations: Vec<f64>,
+    // The measured values from each sample
     pub values: Vec<f64>,
+    // The average values from each sample, ie. values / iterations
     pub avg_values: Vec<f64>,
+    // The statistical estimates from this run
     pub estimates: Estimates,
+    // The throughput of this run
     pub throughput: Option<Throughput>,
+    // The statistical differences compared to the last run. We save these so we don't have to
+    // recompute them later for the history report.
+    pub changes: Option<ChangeEstimates>,
+    // Was the change (if any) significant?
+    pub change_direction: Option<ChangeDirection>,
+
+    // An optional user-provided identifier string. This might be a version control commit ID or
+    // something custom
+    pub history_id: Option<String>,
+    // An optional user-provided description. This might be a version control commit message or
+    // something custom.
+    pub history_description: Option<String>,
 }

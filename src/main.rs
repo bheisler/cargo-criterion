@@ -82,7 +82,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } = compile::compile(self_config.debug_build, &configuration.cargo_args)?;
 
     // Load the saved measurements from the last run.
-    let mut run_model = model::Model::load(self_config.criterion_home.clone(), "main".into());
+    let mut run_model = model::Model::load(
+        self_config.criterion_home.clone(),
+        "main".into(),
+        self_config.history_id.clone(),
+        self_config.history_description.clone(),
+    );
 
     // Set up the reports. These receive notifications as the benchmarks proceed and generate output for the user.
     let cli_report = configure_cli_output(self_config);

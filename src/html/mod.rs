@@ -1,13 +1,16 @@
+use crate::estimate::Estimate;
+use crate::format;
+use crate::model::{
+    Benchmark as BenchmarkModel, BenchmarkGroup as GroupModel, ChangeDirection, Model,
+    SavedStatistics,
+};
+use crate::plot::{PlotContext, Plotter, Size};
 use crate::report::{
     compare_to_threshold, make_filename_safe, BenchmarkId, ComparisonResult, MeasurementData,
     Report, ReportContext,
 };
 use crate::stats::bivariate::regression::Slope;
-
-use crate::estimate::Estimate;
-use crate::format;
-use crate::model::{Benchmark as BenchmarkModel, BenchmarkGroup as GroupModel, Model};
-use crate::plot::{PlotContext, Plotter};
+use crate::stats::univariate::Sample;
 use crate::value_formatter::ValueFormatter;
 use anyhow::{Context as AnyhowContext, Result};
 use linked_hash_set::LinkedHashSet;
@@ -19,8 +22,9 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use tinytemplate::TinyTemplate;
 
-pub struct Size(pub usize, pub usize);
 const THUMBNAIL_SIZE: Option<Size> = Some(Size(450, 300));
+
+const COMMON_CSS: &'static str = include_str!("common.css");
 
 fn save<D, P>(data: &D, path: &P) -> Result<()>
 where
@@ -68,6 +72,8 @@ fn debug_context<S: Serialize + Debug>(path: &Path, context: &S) {
 
 #[derive(Serialize, Debug)]
 struct Context {
+    common_css: &'static str,
+
     title: String,
     confidence: String,
 
@@ -111,6 +117,8 @@ impl IndividualBenchmark {
 
 #[derive(Serialize, Debug)]
 struct SummaryContext {
+    common_css: &'static str,
+
     group_id: String,
 
     thumbnail_width: usize,
@@ -122,7 +130,7 @@ struct SummaryContext {
     benchmarks: Vec<IndividualBenchmark>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 struct ConfidenceInterval {
     lower: String,
     upper: String,
@@ -279,7 +287,33 @@ impl<'a> BenchmarkGroup<'a> {
 
 #[derive(Serialize, Debug)]
 struct IndexContext<'a> {
+    common_css: &'static str,
     groups: Vec<BenchmarkGroup<'a>>,
+}
+
+#[derive(Serialize, Debug)]
+struct HistoryEntry<'a> {
+    number: usize,
+    value: ConfidenceInterval,
+    throughput: Option<ConfidenceInterval>,
+    id: Option<&'a str>,
+    datetime: String,
+    description: Option<&'a str>,
+
+    has_improved: bool,
+    has_regressed: bool,
+    is_not_significant: bool,
+    is_no_change: bool,
+    change_value: Option<ConfidenceInterval>,
+    change_throughput: Option<ConfidenceInterval>,
+    change_class: &'static str,
+}
+
+#[derive(Serialize, Debug)]
+struct HistoryContext<'a> {
+    common_css: &'static str,
+    title: &'a str,
+    history: Vec<HistoryEntry<'a>>,
 }
 
 pub struct Html {
@@ -301,6 +335,9 @@ impl Html {
         templates
             .add_template("summary_report", include_str!("summary_report.html.tt"))
             .expect("Unable to parse summary_report template");
+        templates
+            .add_template("history_report", include_str!("history_report.html.tt"))
+            .expect("Unable to parse history_report template");
 
         let plotter = RefCell::new(plotter);
         Html { templates, plotter }
@@ -359,6 +396,8 @@ impl Report for Html {
         }
 
         let context = Context {
+            common_css: COMMON_CSS,
+
             title: id.as_title().to_owned(),
             confidence: format!(
                 "{:.2}",
@@ -503,7 +542,10 @@ impl Report for Html {
 
         let report_path = output_directory.join("index.html");
 
-        let context = IndexContext { groups };
+        let context = IndexContext {
+            common_css: COMMON_CSS,
+            groups,
+        };
 
         debug_context(&report_path, &context);
 
@@ -512,6 +554,172 @@ impl Report for Html {
             .render("index", &context)
             .expect("Failed to render index template");
         try_else_return!(save_string(&text, &report_path,));
+    }
+
+    fn history(
+        &self,
+        report_context: &ReportContext,
+        id: &BenchmarkId,
+        history: &[SavedStatistics],
+        formatter: &ValueFormatter,
+    ) {
+        let ids: Vec<_> = history
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("#{}", i))
+            .collect();
+
+        let typicals: Vec<_> = history
+            .iter()
+            .map(|stats| stats.estimates.typical())
+            .collect();
+
+        // TODO: This is really starting to strain the limits of the ValueFormatter trait.
+        // In order to ensure that all values in the history are scaled to the same unit, we
+        // have to collect them all into a single array and scale that with the function intended
+        // for plots, and then break them up again and do the formatting manually. Can't change
+        // the trait without a breaking change release though.
+
+        let mut point_estimates: Vec<_> = typicals.iter().map(|est| est.point_estimate).collect();
+        let mut upper_bounds: Vec<_> = typicals
+            .iter()
+            .map(|est| est.confidence_interval.upper_bound)
+            .collect();
+        let mut lower_bounds: Vec<_> = typicals
+            .iter()
+            .map(|est| est.confidence_interval.lower_bound)
+            .collect();
+
+        let typical = Sample::new(&point_estimates).max();
+
+        let latest_throughput = history.last().and_then(|s| s.throughput.as_ref());
+        let throughput_intervals = if let Some(throughput) = latest_throughput {
+            let mut point_estimates = point_estimates.clone();
+            let mut upper_bounds = upper_bounds.clone();
+            let mut lower_bounds = lower_bounds.clone();
+
+            let unit = formatter.scale_throughputs(typical, throughput, &mut point_estimates);
+            formatter.scale_throughputs(typical, throughput, &mut upper_bounds);
+            formatter.scale_throughputs(typical, throughput, &mut lower_bounds);
+
+            point_estimates
+                .into_iter()
+                .zip(upper_bounds.into_iter().zip(lower_bounds.into_iter()))
+                .map(|(point, (upper, lower))| {
+                    Some(ConfidenceInterval {
+                        lower: format!("{:5.2}{}", lower, unit),
+                        point: format!("{:5.2}{}", point, unit),
+                        upper: format!("{:5.2}{}", upper, unit),
+                    })
+                })
+                .collect::<Vec<_>>()
+        } else {
+            vec![None; history.len()]
+        };
+
+        let unit = formatter.scale_values(typical, &mut point_estimates);
+        formatter.scale_values(typical, &mut upper_bounds);
+        formatter.scale_values(typical, &mut lower_bounds);
+
+        let plot_ctx = PlotContext {
+            id,
+            context: report_context,
+            size: Some(Size(960, 640)),
+            is_thumbnail: false,
+        };
+
+        self.plotter.borrow_mut().history(
+            plot_ctx,
+            &upper_bounds,
+            &point_estimates,
+            &lower_bounds,
+            &ids,
+            &unit,
+        );
+        self.plotter.borrow_mut().wait();
+
+        let intervals = point_estimates
+            .into_iter()
+            .zip(upper_bounds.into_iter().zip(lower_bounds.into_iter()))
+            .map(|(point, (upper, lower))| ConfidenceInterval {
+                lower: format!("{:5.2}{}", lower, unit),
+                point: format!("{:5.2}{}", point, unit),
+                upper: format!("{:5.2}{}", upper, unit),
+            });
+
+        let mut history_entries: Vec<HistoryEntry> = history
+            .iter()
+            .zip(intervals)
+            .zip(throughput_intervals)
+            .enumerate()
+            .map(|(i, ((stats, value), throughput))| HistoryEntry {
+                number: i,
+                value,
+                throughput,
+                id: stats.history_id.as_deref(),
+                datetime: stats
+                    .datetime
+                    .with_timezone(&chrono::Local)
+                    .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                description: stats.history_description.as_deref(),
+                change_value: stats.changes.as_ref().map(|c| ConfidenceInterval {
+                    point: format::change(c.mean.point_estimate, true),
+                    lower: format::change(c.mean.confidence_interval.lower_bound, true),
+                    upper: format::change(c.mean.confidence_interval.upper_bound, true),
+                }),
+                change_throughput: match (stats.changes.as_ref(), latest_throughput) {
+                    (Some(c), Some(_)) => {
+                        let to_thrpt_estimate = |ratio: f64| 1.0 / (1.0 + ratio) - 1.0;
+                        let ci = ConfidenceInterval {
+                            point: format::change(to_thrpt_estimate(c.mean.point_estimate), true),
+                            lower: format::change(
+                                to_thrpt_estimate(c.mean.confidence_interval.lower_bound),
+                                true,
+                            ),
+                            upper: format::change(
+                                to_thrpt_estimate(c.mean.confidence_interval.upper_bound),
+                                true,
+                            ),
+                        };
+                        Some(ci)
+                    }
+                    _ => None,
+                },
+                change_class: match stats.change_direction {
+                    Some(ChangeDirection::Improved) => "improved",
+                    Some(ChangeDirection::Regressed) => "regressed",
+                    None
+                    | Some(ChangeDirection::NotSignificant)
+                    | Some(ChangeDirection::NoChange) => "nochange",
+                },
+                has_improved: matches!(&stats.change_direction, Some(ChangeDirection::Improved)),
+                has_regressed: matches!(&stats.change_direction, Some(ChangeDirection::Regressed)),
+                is_no_change: matches!(&stats.change_direction, Some(ChangeDirection::NoChange)),
+                is_not_significant: matches!(
+                    &stats.change_direction,
+                    Some(ChangeDirection::NotSignificant)
+                ),
+            })
+            .collect();
+        history_entries.reverse();
+
+        let context = HistoryContext {
+            common_css: COMMON_CSS,
+            title: id.as_title(),
+            history: history_entries,
+        };
+
+        let report_path = path!(
+            &report_context.output_directory,
+            id.as_directory_name(),
+            "history.html"
+        );
+
+        let text = self
+            .templates
+            .render("history_report", &context)
+            .expect("Failed to render history report template");
+        try_else_return!(save_string(&text, &report_path,), || {});
     }
 }
 impl Html {
@@ -591,7 +799,11 @@ impl Html {
             is_thumbnail: false,
         };
 
-        let plot_ctx_small = plot_ctx.thumbnail(true).size(THUMBNAIL_SIZE);
+        let plot_ctx_small = PlotContext {
+            is_thumbnail: true,
+            size: THUMBNAIL_SIZE,
+            ..plot_ctx
+        };
 
         self.plotter
             .borrow_mut()
@@ -730,6 +942,7 @@ impl Html {
             .collect();
 
         let context = SummaryContext {
+            common_css: COMMON_CSS,
             group_id: id.as_title().to_owned(),
 
             thumbnail_width: THUMBNAIL_SIZE.unwrap().0,

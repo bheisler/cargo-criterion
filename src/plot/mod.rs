@@ -47,18 +47,6 @@ const KDE_POINTS: usize = 500;
 pub struct Size(pub usize, pub usize);
 
 impl<'a> PlotContext<'a> {
-    pub fn size(mut self, s: Option<crate::html::Size>) -> PlotContext<'a> {
-        if let Some(s) = s {
-            self.size = Some(Size(s.0, s.1));
-        }
-        self
-    }
-
-    pub fn thumbnail(mut self, value: bool) -> PlotContext<'a> {
-        self.is_thumbnail = value;
-        self
-    }
-
     pub fn line_comparison_path(&self) -> PathBuf {
         path!(
             &self.context.output_directory,
@@ -183,6 +171,16 @@ pub trait Plotter {
     );
 
     fn t_test(&mut self, ctx: PlotContext<'_>, comparison: &ComparisonData);
+
+    fn history(
+        &mut self,
+        ctx: PlotContext<'_>,
+        upper_bound: &[f64],
+        point_estimate: &[f64],
+        lower_bound: &[f64],
+        ids: &[String],
+        unit: &str,
+    );
 
     fn wait(&mut self);
 }
@@ -364,6 +362,18 @@ pub trait PlottingBackend {
         unit: &str,
         axis_scale: AxisScale,
         lines: &[(&str, LineCurve)],
+    );
+
+    fn history_plot(
+        &mut self,
+        id: &BenchmarkId,
+        size: Size,
+        path: PathBuf,
+
+        point_estimate: LineCurve,
+        confidence_interval: FilledCurve,
+        ids: &[String],
+        unit: &str,
     );
 
     fn wait(&mut self);
@@ -1013,6 +1023,39 @@ impl<B: PlottingBackend> PlotGenerator<B> {
         self.backend
             .t_test(ctx.id, ctx.size, file_path, t, t_distribution)
     }
+
+    fn history_plot(
+        &mut self,
+        ctx: PlotContext<'_>,
+        size: Size,
+        upper_bound: &[f64],
+        point_estimate: &[f64],
+        lower_bound: &[f64],
+        ids: &[String],
+        file_path: PathBuf,
+        unit: &str,
+    ) {
+        let xs: Vec<_> = (0..point_estimate.len()).map(|i| i as f64).collect();
+        let point_estimate = LineCurve {
+            xs: &xs,
+            ys: point_estimate,
+        };
+        let confidence_interval = FilledCurve {
+            xs: &xs,
+            ys_1: upper_bound,
+            ys_2: lower_bound,
+        };
+
+        self.backend.history_plot(
+            ctx.id,
+            size,
+            file_path,
+            point_estimate,
+            confidence_interval,
+            ids,
+            unit,
+        );
+    }
 }
 impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
     fn pdf(
@@ -1366,6 +1409,27 @@ impl<B: PlottingBackend> Plotter for PlotGenerator<B> {
             ctx,
             comparison,
             ctx.context.report_path(ctx.id, "change/t-test.svg"),
+        )
+    }
+
+    fn history(
+        &mut self,
+        ctx: PlotContext<'_>,
+        upper_bound: &[f64],
+        point_estimate: &[f64],
+        lower_bound: &[f64],
+        ids: &[String],
+        unit: &str,
+    ) {
+        self.history_plot(
+            ctx,
+            ctx.size.unwrap(),
+            upper_bound,
+            point_estimate,
+            lower_bound,
+            ids,
+            ctx.context.report_path(ctx.id, "history.svg"),
+            unit,
         )
     }
 
