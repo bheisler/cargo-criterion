@@ -1,13 +1,15 @@
+use crate::analysis::BenchmarkConfig;
+use crate::estimate::Estimate;
+use crate::format;
+use crate::model::{
+    Benchmark as BenchmarkModel, BenchmarkGroup as GroupModel, Model, SavedStatistics,
+};
+use crate::plot::{PlotContext, Plotter};
 use crate::report::{
     compare_to_threshold, make_filename_safe, BenchmarkId, ComparisonResult, MeasurementData,
     Report, ReportContext,
 };
 use crate::stats::bivariate::regression::Slope;
-
-use crate::estimate::Estimate;
-use crate::format;
-use crate::model::{Benchmark as BenchmarkModel, BenchmarkGroup as GroupModel, Model};
-use crate::plot::{PlotContext, Plotter};
 use crate::value_formatter::ValueFormatter;
 use anyhow::{Context as AnyhowContext, Result};
 use linked_hash_set::LinkedHashSet;
@@ -512,6 +514,16 @@ impl Report for Html {
             .render("index", &context)
             .expect("Failed to render index template");
         try_else_return!(save_string(&text, &report_path,));
+    }
+
+    fn history(
+        &self,
+        context: &ReportContext,
+        id: &BenchmarkId,
+        history: &[SavedStatistics],
+        config: &BenchmarkConfig,
+        formatter: &ValueFormatter,
+    ) {
     }
 }
 impl Html {

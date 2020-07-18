@@ -177,6 +177,10 @@ pub struct SelfConfig {
     pub message_format: Option<MessageFormat>,
     /// The colors to use for charts.
     pub colors: Colors,
+    // An optional identifier used to identify this run in the history reports.
+    pub history_id: Option<String>,
+    // An optional description used to describe this run in the history reports.
+    pub history_description: Option<String>,
 }
 
 /// Overall struct that represents all of the configuration data for this run.
@@ -431,6 +435,18 @@ See the documentation for details on the data printed by each format.
 ")
         )
         .arg(
+            Arg::with_name("history_id")
+                .long("--history-id")
+                .takes_value(true)
+                .help("An optional identifier string such as a commit ID that will be shown in the history reports to identify this run.")
+        )
+        .arg(
+            Arg::with_name("history_description")
+                .long("--history-description")
+                .takes_value(true)
+                .help("An optional description string such as a commit message that will be shown in the history reports to describe this run.")
+        )
+        .arg(
             Arg::with_name("verbose")
                 .long("--verbose")
                 .short("v")
@@ -651,6 +667,10 @@ Compilation can be customized with the `bench` profile in the manifest.
         debug_build: matches.is_present("debug"),
         message_format: (matches.value_of("message-format")).map(MessageFormat::from_str),
         colors: toml_config.colors,
+        history_id: matches.value_of("history_id").map(|s| s.to_owned()),
+        history_description: matches
+            .value_of("history_description")
+            .map(|s| s.to_owned()),
     };
 
     // These are the extra arguments to be passed to the benchmark targets.

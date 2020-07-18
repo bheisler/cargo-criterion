@@ -1,11 +1,11 @@
-use crate::stats::bivariate::regression::Slope;
-use crate::stats::bivariate::Data;
-use crate::stats::univariate::outliers::tukey::LabeledSample;
-
+use crate::analysis::BenchmarkConfig;
 use crate::connection::{PlotConfiguration, Throughput};
 use crate::estimate::{ChangeDistributions, ChangeEstimates, Distributions, Estimate, Estimates};
 use crate::format;
-use crate::model::{BenchmarkGroup, Model};
+use crate::model::{BenchmarkGroup, Model, SavedStatistics};
+use crate::stats::bivariate::regression::Slope;
+use crate::stats::bivariate::Data;
+use crate::stats::univariate::outliers::tukey::LabeledSample;
 use crate::stats::univariate::Sample;
 use crate::stats::Distribution;
 use crate::value_formatter::ValueFormatter;
@@ -281,6 +281,15 @@ pub trait Report {
     }
     fn final_summary(&self, _context: &ReportContext, _model: &Model) {}
     fn group_separator(&self) {}
+    fn history(
+        &self,
+        _context: &ReportContext,
+        _id: &BenchmarkId,
+        _history: &[SavedStatistics],
+        _config: &BenchmarkConfig,
+        _formatter: &ValueFormatter,
+    ) {
+    }
 }
 
 pub struct Reports<'a> {
@@ -356,6 +365,19 @@ impl<'a> Report for Reports<'a> {
     fn group_separator(&self) {
         for report in &self.reports {
             report.group_separator();
+        }
+    }
+
+    fn history(
+        &self,
+        context: &ReportContext,
+        id: &BenchmarkId,
+        history: &[SavedStatistics],
+        config: &BenchmarkConfig,
+        formatter: &ValueFormatter,
+    ) {
+        for report in &self.reports {
+            report.history(context, id, history, config, formatter);
         }
     }
 }
