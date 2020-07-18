@@ -245,6 +245,16 @@ impl BenchTarget {
                         .map(|(iter, time)| *time / (*iter as f64))
                         .collect();
 
+                    if times.iter().any(|&f| f == 0.0) {
+                        error!("At least one measurement of benchmark {} took zero time per \
+                        iteration. This should not be possible. If using iter_custom, please verify \
+                        that your routine is correctly measured.", id.as_title());
+                        // Create and drop a value formatter because the benchmark will be waiting
+                        // for that
+                        crate::value_formatter::ValueFormatter::new(conn);
+                        return Ok(());
+                    }
+
                     let saved_stats = model.get_last_sample(&id).cloned();
 
                     let measured_data = crate::analysis::analysis(
