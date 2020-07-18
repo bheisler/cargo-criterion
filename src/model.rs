@@ -1,6 +1,6 @@
 use crate::connection::Throughput;
 use crate::estimate::{ChangeEstimates, Estimates};
-use crate::report::{BenchmarkId, MeasurementData};
+use crate::report::{BenchmarkId, ComparisonData, MeasurementData};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use linked_hash_map::LinkedHashMap;
@@ -170,7 +170,10 @@ impl Model {
                 .comparison
                 .as_ref()
                 .map(|c| c.relative_estimates.clone()),
-
+            change_direction: analysis_results
+                .comparison
+                .as_ref()
+                .map(get_change_direction),
             history_id: self.history_id.clone(),
             history_description: self.history_description.clone(),
         };
@@ -321,6 +324,33 @@ struct BenchmarkRecord {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum ChangeDirection {
+    NoChange,
+    NotSignificant,
+    Improved,
+    Regressed,
+}
+
+fn get_change_direction(comp: &ComparisonData) -> ChangeDirection {
+    if comp.p_value < comp.significance_threshold {
+        return ChangeDirection::NoChange;
+    }
+
+    let ci = &comp.relative_estimates.mean.confidence_interval;
+    let lb = ci.lower_bound;
+    let ub = ci.upper_bound;
+    let noise = comp.noise_threshold;
+
+    if lb < -noise && ub < -noise {
+        ChangeDirection::Improved
+    } else if lb > noise && ub > noise {
+        ChangeDirection::Regressed
+    } else {
+        ChangeDirection::NotSignificant
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SavedStatistics {
     // The timestamp of when these measurements were saved.
     pub datetime: DateTime<Utc>,
@@ -337,6 +367,8 @@ pub struct SavedStatistics {
     // The statistical differences compared to the last run. We save these so we don't have to
     // recompute them later for the history report.
     pub changes: Option<ChangeEstimates>,
+    // Was the change (if any) significant?
+    pub change_direction: Option<ChangeDirection>,
 
     // An optional user-provided identifier string. This might be a version control commit ID or
     // something custom

@@ -293,19 +293,7 @@ impl BenchTarget {
                         report.measurement_complete(&id, &context, &measured_data, &formatter);
 
                         match model.load_history(&id) {
-                            Ok(history) => {
-                                println!(
-                                    "Calling history report with {} historical stats.",
-                                    history.len()
-                                );
-                                report.history(
-                                    &context,
-                                    &id,
-                                    &history,
-                                    &benchmark_config,
-                                    &formatter,
-                                )
-                            }
+                            Ok(history) => report.history(&context, &id, &history, &formatter),
                             Err(e) => error!("Failed to load historical data: {:?}", e),
                         }
                     }

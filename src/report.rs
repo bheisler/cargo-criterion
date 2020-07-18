@@ -1,4 +1,3 @@
-use crate::analysis::BenchmarkConfig;
 use crate::connection::{PlotConfiguration, Throughput};
 use crate::estimate::{ChangeDistributions, ChangeEstimates, Distributions, Estimate, Estimates};
 use crate::format;
@@ -286,7 +285,6 @@ pub trait Report {
         _context: &ReportContext,
         _id: &BenchmarkId,
         _history: &[SavedStatistics],
-        _config: &BenchmarkConfig,
         _formatter: &ValueFormatter,
     ) {
     }
@@ -373,11 +371,10 @@ impl<'a> Report for Reports<'a> {
         context: &ReportContext,
         id: &BenchmarkId,
         history: &[SavedStatistics],
-        config: &BenchmarkConfig,
         formatter: &ValueFormatter,
     ) {
         for report in &self.reports {
-            report.history(context, id, history, config, formatter);
+            report.history(context, id, history, formatter);
         }
     }
 }
