@@ -4,6 +4,7 @@ use std::ffi::OsString;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[derive(Deserialize, Debug, Clone, Copy)]
 pub struct Color {
@@ -187,6 +188,22 @@ pub struct FullConfig {
     pub cargo_args: Vec<OsString>,
     /// The additional arguments we pass through to the benchmark executables
     pub additional_args: Vec<OsString>,
+}
+
+/// Call `cargo criterion` and parse the output to get the path to the target directory.
+fn get_target_directory_from_metadata() -> Result<PathBuf> {
+    let out = Command::new("cargo")
+        .args(&["metadata", "--format-version", "1"])
+        .output()?;
+
+    #[derive(Deserialize)]
+    struct MetadataMessage {
+        target_directory: String,
+    }
+
+    let message: MetadataMessage = serde_json::from_reader(std::io::Cursor::new(out.stdout))?;
+    let path = PathBuf::from(message.target_directory);
+    Ok(path)
 }
 
 /// Parse the command-line arguments, load the Criterion.toml config file, and generate a
@@ -601,7 +618,7 @@ Compilation can be customized with the `bench` profile in the manifest.
     // - $CRITERION_HOME
     // - The value from the config file
     // - ${--target-dir}/criterion
-    // - $CARGO_TARGET_DIR/criterion
+    // - ${target directory from `cargo metadata`}/criterion
     // - ./target/criterion
     let criterion_home = if let Some(value) = std::env::var_os("CRITERION_HOME") {
         PathBuf::from(value)
@@ -609,8 +626,9 @@ Compilation can be customized with the `bench` profile in the manifest.
         home
     } else if let Some(value) = matches.value_of_os("target-dir") {
         PathBuf::from(value).join("criterion")
-    } else if let Some(value) = std::env::var_os("CARGO_TARGET_DIR") {
-        PathBuf::from(value).join("criterion")
+    } else if let Ok(mut target_path) = get_target_directory_from_metadata() {
+        target_path.push("criterion");
+        target_path
     } else {
         PathBuf::from("target/criterion")
     };
