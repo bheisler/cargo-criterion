@@ -4,7 +4,7 @@ use crate::model::{
     Benchmark as BenchmarkModel, BenchmarkGroup as GroupModel, ChangeDirection, Model,
     SavedStatistics,
 };
-use crate::plot::{PlotContext, Plotter};
+use crate::plot::{PlotContext, Plotter, Size};
 use crate::report::{
     compare_to_threshold, make_filename_safe, BenchmarkId, ComparisonResult, MeasurementData,
     Report, ReportContext,
@@ -22,7 +22,6 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use tinytemplate::TinyTemplate;
 
-pub struct Size(pub usize, pub usize);
 const THUMBNAIL_SIZE: Option<Size> = Some(Size(450, 300));
 
 const COMMON_CSS: &'static str = include_str!("common.css");
@@ -564,6 +563,12 @@ impl Report for Html {
         history: &[SavedStatistics],
         formatter: &ValueFormatter,
     ) {
+        let ids: Vec<_> = history
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("#{}", i))
+            .collect();
+
         let typicals: Vec<_> = history
             .iter()
             .map(|stats| stats.estimates.typical())
@@ -616,6 +621,23 @@ impl Report for Html {
         formatter.scale_values(typical, &mut upper_bounds);
         formatter.scale_values(typical, &mut lower_bounds);
 
+        let plot_ctx = PlotContext {
+            id,
+            context: report_context,
+            size: Some(Size(960, 640)),
+            is_thumbnail: false,
+        };
+
+        self.plotter.borrow_mut().history(
+            plot_ctx,
+            &upper_bounds,
+            &point_estimates,
+            &lower_bounds,
+            &ids,
+            &unit,
+        );
+        self.plotter.borrow_mut().wait();
+
         let intervals = point_estimates
             .into_iter()
             .zip(upper_bounds.into_iter().zip(lower_bounds.into_iter()))
@@ -635,7 +657,10 @@ impl Report for Html {
                 value,
                 throughput,
                 id: stats.history_id.as_deref(),
-                datetime: stats.datetime.to_string(),
+                datetime: stats
+                    .datetime
+                    .with_timezone(&chrono::Local)
+                    .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                 description: stats.history_description.as_deref(),
                 change_value: stats.changes.as_ref().map(|c| ConfidenceInterval {
                     point: format::change(c.mean.point_estimate, true),
@@ -774,7 +799,11 @@ impl Html {
             is_thumbnail: false,
         };
 
-        let plot_ctx_small = plot_ctx.thumbnail(true).size(THUMBNAIL_SIZE);
+        let plot_ctx_small = PlotContext {
+            is_thumbnail: true,
+            size: THUMBNAIL_SIZE,
+            ..plot_ctx
+        };
 
         self.plotter
             .borrow_mut()

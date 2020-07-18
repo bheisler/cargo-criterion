@@ -43,7 +43,7 @@
 
 <body>
     <div class="body">
-        <h2>{title}</h2>
+        <h2>{title} (<a href="history.html">History</a>)</h2>
         <div class="absolute">
             <section class="plots">
                 <table width="100%">

@@ -27,6 +27,7 @@ macro_rules! to_lines {
 }
 
 mod distributions;
+mod history;
 mod iteration_times;
 mod pdf;
 mod regression;
@@ -374,6 +375,30 @@ impl PlottingBackend for Gnuplot {
         lines: &[(&str, LineCurve)],
     ) {
         let mut figure = summary::violin(&self.colors, title, unit, axis_scale, lines);
+        debug_script(&path, &figure);
+        self.process_list
+            .push(figure.set(Output(path)).draw().unwrap())
+    }
+
+    fn history_plot(
+        &mut self,
+        id: &BenchmarkId,
+        size: Size,
+        path: PathBuf,
+        point_estimate: LineCurve,
+        confidence_interval: FilledArea,
+        ids: &[String],
+        unit: &str,
+    ) {
+        let mut figure = history::history_plot(
+            &self.colors,
+            id.as_title(),
+            size,
+            point_estimate,
+            confidence_interval,
+            ids,
+            unit,
+        );
         debug_script(&path, &figure);
         self.process_list
             .push(figure.set(Output(path)).draw().unwrap())

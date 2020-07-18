@@ -33,6 +33,7 @@
 
 <body>
     <div class="body">
+        <img alt="History of { title }" src="history.svg"></img>
         {{- for entry in history }}
         <h4> <span class="number"># { entry.number }</span>{{ if entry.id }} - {entry.id}{{ endif }}<span class="timestamp">{ entry.datetime }</span> </h4>
         <br>
