@@ -5,15 +5,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>{title} - Criterion.rs</title>
     <style type="text/css">
-        body \{
-            font: 14px Helvetica Neue;
-            text-rendering: optimizelegibility;
-        }
-
-        .body \{
-            width: 960px;
-            margin: auto;
-        }
+        {- common_css }
 
         th \{
             font-weight: 200
@@ -23,11 +15,6 @@
         td \{
             padding-right: 3px;
             padding-bottom: 3px;
-        }
-
-        a:link \{
-            color: #1F78B4;
-            text-decoration: none;
         }
 
         th.ci-bound \{
@@ -50,33 +37,6 @@
 
         .additional_plots \{
             flex: 1
-        }
-
-        h2 \{
-            font-size: 36px;
-            font-weight: 300;
-        }
-
-        h3 \{
-            font-size: 24px;
-            font-weight: 300;
-        }
-
-        #footer \{
-            height: 40px;
-            background: #888;
-            color: white;
-            font-size: larger;
-            font-weight: 300;
-        }
-
-        #footer a \{
-            color: white;
-            text-decoration: underline;
-        }
-
-        #footer p \{
-            text-align: center
         }
     </style>
 </head>

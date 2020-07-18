@@ -24,6 +24,8 @@ use tinytemplate::TinyTemplate;
 pub struct Size(pub usize, pub usize);
 const THUMBNAIL_SIZE: Option<Size> = Some(Size(450, 300));
 
+const COMMON_CSS: &'static str = include_str!("common.css");
+
 fn save<D, P>(data: &D, path: &P) -> Result<()>
 where
     D: Serialize + Debug,
@@ -70,6 +72,8 @@ fn debug_context<S: Serialize + Debug>(path: &Path, context: &S) {
 
 #[derive(Serialize, Debug)]
 struct Context {
+    common_css: &'static str,
+
     title: String,
     confidence: String,
 
@@ -113,6 +117,8 @@ impl IndividualBenchmark {
 
 #[derive(Serialize, Debug)]
 struct SummaryContext {
+    common_css: &'static str,
+
     group_id: String,
 
     thumbnail_width: usize,
@@ -281,6 +287,7 @@ impl<'a> BenchmarkGroup<'a> {
 
 #[derive(Serialize, Debug)]
 struct IndexContext<'a> {
+    common_css: &'static str,
     groups: Vec<BenchmarkGroup<'a>>,
 }
 
@@ -361,6 +368,8 @@ impl Report for Html {
         }
 
         let context = Context {
+            common_css: COMMON_CSS,
+
             title: id.as_title().to_owned(),
             confidence: format!(
                 "{:.2}",
@@ -505,7 +514,10 @@ impl Report for Html {
 
         let report_path = output_directory.join("index.html");
 
-        let context = IndexContext { groups };
+        let context = IndexContext {
+            common_css: COMMON_CSS,
+            groups,
+        };
 
         debug_context(&report_path, &context);
 
@@ -742,6 +754,7 @@ impl Html {
             .collect();
 
         let context = SummaryContext {
+            common_css: COMMON_CSS,
             group_id: id.as_title().to_owned(),
 
             thumbnail_width: THUMBNAIL_SIZE.unwrap().0,
