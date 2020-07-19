@@ -10,7 +10,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - cargo-criterion now calls `cargo metadata` to find the path to the target directory. This fixes
   the location of the target directory in workspaces.
 
-## [1.0.0-alpha3] - 2020.07-06
+## Added
+- Added a report showing the historical performance of a benchmark.
+
+## [1.0.0-alpha3] - 2020-07-06
 ### Added
 - The criterion.toml file can now be used to configure the colors used for the generated plots.
 
