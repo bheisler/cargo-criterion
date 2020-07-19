@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 # [Unreleased]
+
+## [1.0.0] - 2020-07-18
 ### Fixed
 - Fixed potential panic if a benchmark took zero time.
 - cargo-criterion now calls `cargo metadata` to find the path to the target directory. This fixes
@@ -45,4 +47,5 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 [1.0.0-alpha1]: https://github.com/bheisler/cargo-criterion/compare/e5fa23b...1.0.0-alpha1
 [1.0.0-alpha2]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha1...1.0.0-alpha2
 [1.0.0-alpha3]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha2...1.0.0-alpha3
-[Unreleased]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha3...HEAD
+[1.0.0]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha3...1.0.0
+[Unreleased]: https://github.com/bheisler/cargo-criterion/compare/1.0.0...HEAD
