@@ -121,11 +121,9 @@ pub fn violin(
             if is_first {
                 is_first = false;
 
-                c.set(colors.current_sample)
-                    .set(Label("PDF"))
-                    .set(Opacity(0.45))
+                c.set(colors.current_sample).set(Label("PDF"))
             } else {
-                c.set(colors.current_sample).set(Opacity(0.45))
+                c.set(colors.current_sample)
             }
         });
     }
