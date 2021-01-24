@@ -106,8 +106,9 @@ pub fn violin(
     axis_scale: AxisScale,
     lines: &[(&str, LineCurve)],
 ) {
-    let x_range =
+    let mut x_range =
         plotters::data::fitting_range(lines.iter().flat_map(|(_, curve)| curve.xs.iter()));
+    x_range.start = 0.0;
     let y_range = -0.5..lines.len() as f64 - 0.5;
 
     let size = (960, 150 + (18 * lines.len() as u32));
