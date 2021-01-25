@@ -572,6 +572,11 @@ impl Report for Html {
         let typicals: Vec<_> = history
             .iter()
             .map(|stats| stats.estimates.typical())
+            .filter(|typ| {
+                typ.point_estimate.is_finite()
+                    && typ.confidence_interval.upper_bound.is_finite()
+                    && typ.confidence_interval.lower_bound.is_finite()
+            })
             .collect();
 
         // TODO: This is really starting to strain the limits of the ValueFormatter trait.
@@ -589,6 +594,10 @@ impl Report for Html {
             .iter()
             .map(|est| est.confidence_interval.lower_bound)
             .collect();
+
+        if point_estimates.len() < 2 {
+            return;
+        }
 
         let typical = Sample::new(&point_estimates).max();
 
