@@ -5,9 +5,12 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 # [Unreleased]
+
+## [1.0.1] - 2021-01-24
 ### Fixed
 - Changed opacity of the violin plots to full.
 - Fixed violin chart X axis not starting at zero in the plotters backend.
+- Fixed panic in the history report code.
 
 ## [1.0.0] - 2020-07-18
 ### Fixed
@@ -51,4 +54,5 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 [1.0.0-alpha2]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha1...1.0.0-alpha2
 [1.0.0-alpha3]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha2...1.0.0-alpha3
 [1.0.0]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha3...1.0.0
-[Unreleased]: https://github.com/bheisler/cargo-criterion/compare/1.0.0...HEAD
+[1.0.1]: https://github.com/bheisler/cargo-criterion/compare/1.0.0-alpha3...1.0.1
+[Unreleased]: https://github.com/bheisler/cargo-criterion/compare/1.0.1...HEAD
