@@ -5,7 +5,7 @@ authors = ["Brook Heisler <redattack34@gmail.com>"]
 edition = "2018"
 
 description = "Cargo extension for running Criterion.rs benchmarks and reporting the results."
-repository = "https://github.com/bheisler/criterion.rs/cargo-criterion"
+repository = "https://github.com/bheisler/cargo-criterion"
 readme = "README.md"
 keywords = ["criterion", "benchmark"]
 categories = ["development-tools::profiling", "development-tools::cargo-plugins"]
