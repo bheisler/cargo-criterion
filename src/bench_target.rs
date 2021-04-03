@@ -102,9 +102,9 @@ impl BenchTarget {
                         return Ok(());
                     } else {
                         return Err(anyhow!(
-                            "Non-Criterion.rs benchmark target {} exited with error code {:?}",
+                            "Non-Criterion.rs benchmark target {} exited with {}",
                             self.name,
-                            exit_status.code()
+                            exit_status
                         ));
                     }
                 }
@@ -185,9 +185,9 @@ impl BenchTarget {
                         return Ok(());
                     } else {
                         return Err(anyhow!(
-                            "Criterion.rs benchmark target {} exited with error code {:?}",
+                            "Criterion.rs benchmark target {} exited with {}",
                             self.name,
-                            exit_status.code()
+                            exit_status
                         ));
                     }
                 }
