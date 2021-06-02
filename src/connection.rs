@@ -29,12 +29,12 @@ impl std::error::Error for ConnectionError {
 #[derive(Debug)]
 #[repr(u16)]
 enum ProtocolFormat {
-    CBOR = 1,
+    Cbor = 1,
 }
 impl ProtocolFormat {
     fn from_u16(format: u16) -> Result<Self, ConnectionError> {
         match format {
-            1 => Ok(ProtocolFormat::CBOR),
+            1 => Ok(ProtocolFormat::Cbor),
             _ => Err(ConnectionError::HelloFailed("Unknown format value sent by Criterion.rs benchmark; please update cargo-criterion.")),
         }
     }
@@ -257,10 +257,7 @@ pub enum SamplingMethod {
 }
 impl SamplingMethod {
     pub fn is_linear(&self) -> bool {
-        match self {
-            SamplingMethod::Linear => true,
-            _ => false,
-        }
+        matches!(self, SamplingMethod::Linear)
     }
 }
 

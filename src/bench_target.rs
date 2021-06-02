@@ -4,7 +4,7 @@ use crate::report::{BenchmarkId, Report, ReportContext};
 use anyhow::{anyhow, Context, Result};
 use std::ffi::OsString;
 use std::net::TcpListener;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 /// Structure representing a compiled benchmark executable.
@@ -27,7 +27,7 @@ impl BenchTarget {
     /// will block until the benchmark target terminates.
     pub fn execute(
         &self,
-        criterion_home: &PathBuf,
+        criterion_home: &Path,
         additional_args: &[OsString],
         library_paths: &[PathBuf],
         report: &dyn Report,
@@ -135,42 +135,43 @@ impl BenchTarget {
         };
         let mut any_from_group_executed = false;
         loop {
-            let message = conn.recv().with_context(|| {
+            let message_opt = conn.recv().with_context(|| {
                 format!(
                     "Failed to receive message from Criterion.rs benchmark target {}",
                     self.name
                 )
             })?;
-            if message.is_none() {
-                return Ok(());
-            }
-            let message = message.unwrap();
-            match message {
-                IncomingMessage::BeginningBenchmarkGroup { group } => {
-                    any_from_group_executed = false;
-                    model.check_benchmark_group(&self.name, &group);
-                }
-                IncomingMessage::FinishedBenchmarkGroup { group } => {
-                    let benchmark_group = model.add_benchmark_group(&self.name, &group);
-                    {
-                        let formatter = crate::value_formatter::ValueFormatter::new(&mut conn);
-                        report.summarize(&context, &group, benchmark_group, &formatter);
-                        if any_from_group_executed {
-                            report.group_separator();
+
+            let message_is_some = message_opt.is_some();
+
+            if let Some(message) = message_opt {
+                match message {
+                    IncomingMessage::BeginningBenchmarkGroup { group } => {
+                        any_from_group_executed = false;
+                        model.check_benchmark_group(&self.name, &group);
+                    }
+                    IncomingMessage::FinishedBenchmarkGroup { group } => {
+                        let benchmark_group = model.add_benchmark_group(&self.name, &group);
+                        {
+                            let formatter = crate::value_formatter::ValueFormatter::new(&mut conn);
+                            report.summarize(&context, &group, benchmark_group, &formatter);
+                            if any_from_group_executed {
+                                report.group_separator();
+                            }
                         }
                     }
+                    IncomingMessage::BeginningBenchmark { id } => {
+                        any_from_group_executed = true;
+                        let mut id = id.into();
+                        model.add_benchmark_id(&self.name, &mut id);
+                        self.run_benchmark(&mut conn, report, model, id, &mut context)?;
+                    }
+                    IncomingMessage::SkippingBenchmark { id } => {
+                        let mut id = id.into();
+                        model.add_benchmark_id(&self.name, &mut id);
+                    }
+                    other => panic!("Unexpected message {:?}", other),
                 }
-                IncomingMessage::BeginningBenchmark { id } => {
-                    any_from_group_executed = true;
-                    let mut id = id.into();
-                    model.add_benchmark_id(&self.name, &mut id);
-                    self.run_benchmark(&mut conn, report, model, id, &mut context)?;
-                }
-                IncomingMessage::SkippingBenchmark { id } => {
-                    let mut id = id.into();
-                    model.add_benchmark_id(&self.name, &mut id);
-                }
-                other => panic!("Unexpected message {:?}", other),
             }
 
             match child.try_wait() {
@@ -191,7 +192,8 @@ impl BenchTarget {
                         ));
                     }
                 }
-                Ok(None) => continue,
+                Ok(None) if message_is_some => continue,
+                Ok(None) => return Ok(()),
             };
         }
     }
