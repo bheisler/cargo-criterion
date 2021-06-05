@@ -142,8 +142,6 @@ impl BenchTarget {
                 )
             })?;
 
-            let message_is_some = message_opt.is_some();
-
             if let Some(message) = message_opt {
                 match message {
                     IncomingMessage::BeginningBenchmarkGroup { group } => {
@@ -192,8 +190,7 @@ impl BenchTarget {
                         ));
                     }
                 }
-                Ok(None) if message_is_some => continue,
-                Ok(None) => return Ok(()),
+                Ok(None) => continue,
             };
         }
     }
