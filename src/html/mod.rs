@@ -24,7 +24,7 @@ use tinytemplate::TinyTemplate;
 
 const THUMBNAIL_SIZE: Option<Size> = Some(Size(450, 300));
 
-const COMMON_CSS: &'static str = include_str!("common.css");
+const COMMON_CSS: &str = include_str!("common.css");
 
 fn save<D, P>(data: &D, path: &P) -> Result<()>
 where
