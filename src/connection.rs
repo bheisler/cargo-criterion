@@ -76,6 +76,9 @@ impl Connection {
         hello_buf[i + 1] = env!("CARGO_PKG_VERSION_MINOR").parse().unwrap();
         hello_buf[i + 2] = env!("CARGO_PKG_VERSION_PATCH").parse().unwrap();
 
+        socket.set_nonblocking(false)?;
+        socket.set_read_timeout(None)?;
+        socket.set_write_timeout(None)?;
         socket.write_all(&hello_buf)?;
 
         // Read the benchmark hello message.
@@ -115,7 +118,12 @@ impl Connection {
     pub fn recv<T: DeserializeOwned>(&mut self) -> Result<Option<T>> {
         let mut length_buf = [0u8; 4];
         match self.socket.read_exact(&mut length_buf) {
-            Err(err) if err.kind() == ErrorKind::UnexpectedEof => return Ok(None),
+            Err(err)
+                if err.kind() == ErrorKind::UnexpectedEof
+                    || err.kind() == ErrorKind::ConnectionReset =>
+            {
+                return Ok(None)
+            }
             Err(err) => return Err(err.into()),
             Ok(val) => val,
         };
