@@ -396,7 +396,6 @@ in the benchmark will not be optimized either. This may result in less-accurate 
                 .long("output-format")
                 .takes_value(true)
                 .possible_values(&["criterion", "quiet", "verbose", "bencher"])
-                .default_value("criterion")
                 .hide_default_value(true)
                 .hide_possible_values(true)
                 .help("Change the CLI output format. Possible values are criterion, quiet, verbose, bencher.")
