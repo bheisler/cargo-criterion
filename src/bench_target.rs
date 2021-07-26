@@ -36,9 +36,9 @@ impl BenchTarget {
     ) -> Result<()> {
         let listener = TcpListener::bind("localhost:0")
             .context("Unable to open socket to connect to Criterion.rs")?;
-        listener
-            .set_nonblocking(true)
-            .context("Unable to set socket to nonblocking")?;
+        //listener
+        //    .set_nonblocking(true)
+        //    .context("Unable to set socket to nonblocking")?;
 
         let addr = listener
             .local_addr()
