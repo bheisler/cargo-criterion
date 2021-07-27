@@ -8,6 +8,8 @@ autobenches = false
 [dependencies]
 
 # These are benchmarks used to test cargo-criterion itself.
+
+# This benchmark requires tch which doesn't build on arm.
 #[[bench]]
 #name = "test_benchmark_external_c_lib"
 #harness = false
