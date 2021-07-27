@@ -41,7 +41,6 @@ impl BenchTarget {
         listener
             .set_nonblocking(true)
             .context("Unable to set socket to nonblocking")?;
-        dbg!();
 
         let addr = listener
             .local_addr()
