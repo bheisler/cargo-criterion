@@ -1,46 +1,46 @@
 [package]
-name = "cargo-criterion"
+name    = "cargo-criterion"
 version = "1.0.1"
 authors = ["Brook Heisler <redattack34@gmail.com>"]
 edition = "2018"
 
 description = "Cargo extension for running Criterion.rs benchmarks and reporting the results."
-repository = "https://github.com/bheisler/cargo-criterion"
-readme = "README.md"
-keywords = ["criterion", "benchmark"]
-categories = ["development-tools::profiling", "development-tools::cargo-plugins"]
-license = "Apache-2.0/MIT"
+repository  = "https://github.com/bheisler/cargo-criterion"
+readme      = "README.md"
+keywords    = ["criterion", "benchmark"]
+categories  = ["development-tools::profiling", "development-tools::cargo-plugins"]
+license     = "Apache-2.0/MIT"
 
 exclude = ["integration_tests/*", "ci/*"]
 
 [dependencies]
-serde = "1.0"
-serde_json = "1.0"
-serde_derive = "1.0"
-serde_cbor = "0.11"
-toml = { version = "0.5", features=["preserve_order"] }
-clap = "2.33"
-oorandom = "11.1"
-cast = "0.2"
-num-traits = "0.2"
-rayon = "1.3"
-chrono = { version = "0.4", features=["serde"] }
-anyhow = "1.0"
-log = "0.4"
-simplelog = "0.8"
-atty = "0.2"
-lazy_static = "1.4"
-criterion-plot = { version="0.4.3", optional=true }
-tinytemplate = "1.1"
+serde           = "1.0"
+serde_json      = "1.0"
+serde_derive    = "1.0"
+serde_cbor      = "0.11"
+toml            = { version = "0.5", features = ["preserve_order"] }
+clap            = "2.33"
+oorandom        = "11.1"
+cast            = "0.2"
+num-traits      = "0.2"
+rayon           = "1.3"
+chrono          = { version = "0.4", features = ["serde"] }
+anyhow          = "1.0"
+log             = "0.4"
+simplelog       = "0.8"
+atty            = "0.2"
+lazy_static     = "1.4"
+criterion-plot  = { version = "0.4.3", optional = true }
+tinytemplate    = "1.1"
 linked-hash-map = "0.5"
 linked_hash_set = "0.1"
-walkdir = "2.3"
+walkdir         = "2.3"
 
 [dependencies.plotters]
-version = "^0.2.12"
+version          = "0.3.1"
 default-features = false
-features = ["svg", "area_series", "line_series"] 
-optional = true
+features         = ["svg_backend", "area_series", "line_series"]
+optional         = true
 
 [features]
 default = ["gnuplot_backend", "plotters_backend"]
@@ -52,6 +52,6 @@ gnuplot_backend = ["criterion-plot"]
 plotters_backend = ["plotters"]
 
 [dev-dependencies]
-approx = "0.3"
+approx     = "0.3"
 quickcheck = { version = "0.9", default-features = false }
-rand = "0.7"
+rand       = "0.7"
