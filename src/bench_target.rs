@@ -36,9 +36,11 @@ impl BenchTarget {
     ) -> Result<()> {
         let listener = TcpListener::bind("localhost:0")
             .context("Unable to open socket to connect to Criterion.rs")?;
-        //listener
-        //    .set_nonblocking(true)
-        //    .context("Unable to set socket to nonblocking")?;
+        // listener has to be non-blocking while we wait for connections.
+        // Otherwise we'll wait forever if no-one connects to us
+        listener
+            .set_nonblocking(true)
+            .context("Unable to set socket to nonblocking")?;
 
         let addr = listener
             .local_addr()
@@ -77,6 +79,9 @@ impl BenchTarget {
         loop {
             match listener.accept() {
                 Ok((socket, _)) => {
+                    socket
+                        .set_nonblocking(false)
+                        .context("Unable to set socket to blocking")?;
                     let conn = Connection::new(socket).with_context(|| {
                         format!("Unable to open connection to bench target {}", self.name)
                     })?;
