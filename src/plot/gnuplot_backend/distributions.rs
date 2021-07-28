@@ -88,7 +88,7 @@ pub fn rel_distribution(
     point_estimate: Line,
     noise_threshold: Rectangle,
 ) -> Figure {
-    let xs_ = Sample::new(&distribution_curve.xs);
+    let xs_ = Sample::new(distribution_curve.xs);
     let x_min = xs_.min();
     let x_max = xs_.max();
 

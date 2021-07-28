@@ -2,7 +2,10 @@ use crate::connection::AxisScale;
 use crate::plot::plotters_backend::{Colors, DEFAULT_FONT, POINT_SIZE, SIZE};
 use crate::plot::LineCurve;
 use crate::report::ValueType;
-use plotters::coord::{AsRangedCoord, Shift};
+use plotters::coord::{
+    ranged1d::{AsRangedCoord, ValueFormatter as PlottersValueFormatter},
+    Shift,
+};
 use plotters::prelude::*;
 use std::path::PathBuf;
 
@@ -26,14 +29,14 @@ pub fn line_comparison(
 
     match axis_scale {
         AxisScale::Linear => draw_line_comparison_figure(
-            colors, root_area, &unit, x_range, y_range, value_type, lines,
+            colors, root_area, unit, x_range, y_range, value_type, lines,
         ),
         AxisScale::Logarithmic => draw_line_comparison_figure(
             colors,
             root_area,
-            &unit,
-            LogRange(x_range),
-            LogRange(y_range),
+            unit,
+            x_range.log_scale(),
+            y_range.log_scale(),
             value_type,
             lines,
         ),
@@ -48,7 +51,10 @@ fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
     y_range: YR,
     value_type: ValueType,
     data: &[(Option<&String>, LineCurve)],
-) {
+) where
+    XR::CoordDescType: PlottersValueFormatter<f64>,
+    YR::CoordDescType: PlottersValueFormatter<f64>,
+{
     let input_suffix = match value_type {
         ValueType::Bytes => " Size (Bytes)",
         ValueType::Elements => " Size (Elements)",
@@ -59,7 +65,7 @@ fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
         .margin((5).percent())
         .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
         .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
-        .build_ranged(x_range, y_range)
+        .build_cartesian_2d(x_range, y_range)
         .unwrap();
 
     chart
@@ -81,7 +87,7 @@ fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
             )
             .unwrap();
         if let Some(name) = name {
-            let name: &str = &*name;
+            let name: &str = *name;
             series.label(name).legend(move |(x, y)| {
                 Rectangle::new(
                     [(x, y - 5), (x + 20, y + 5)],
@@ -119,9 +125,9 @@ pub fn violin(
         .unwrap();
 
     match axis_scale {
-        AxisScale::Linear => draw_violin_figure(colors, root_area, &unit, x_range, y_range, lines),
+        AxisScale::Linear => draw_violin_figure(colors, root_area, unit, x_range, y_range, lines),
         AxisScale::Logarithmic => {
-            draw_violin_figure(colors, root_area, &unit, LogRange(x_range), y_range, lines)
+            draw_violin_figure(colors, root_area, unit, x_range.log_scale(), y_range, lines)
         }
     }
 }
@@ -133,12 +139,15 @@ fn draw_violin_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord<Value = 
     x_range: XR,
     y_range: YR,
     data: &[(&str, LineCurve)],
-) {
+) where
+    XR::CoordDescType: PlottersValueFormatter<f64>,
+    YR::CoordDescType: PlottersValueFormatter<f64>,
+{
     let mut chart = ChartBuilder::on(&root_area)
         .margin((5).percent())
         .set_label_area_size(LabelAreaPosition::Left, (10).percent_width().min(60))
         .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_width().min(40))
-        .build_ranged(x_range, y_range)
+        .build_cartesian_2d(x_range, y_range)
         .unwrap();
 
     chart

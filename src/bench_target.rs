@@ -36,6 +36,8 @@ impl BenchTarget {
     ) -> Result<()> {
         let listener = TcpListener::bind("localhost:0")
             .context("Unable to open socket to connect to Criterion.rs")?;
+        // listener has to be non-blocking while we wait for connections.
+        // Otherwise we'll wait forever if no-one connects to us
         listener
             .set_nonblocking(true)
             .context("Unable to set socket to nonblocking")?;
@@ -77,6 +79,9 @@ impl BenchTarget {
         loop {
             match listener.accept() {
                 Ok((socket, _)) => {
+                    socket
+                        .set_nonblocking(false)
+                        .context("Unable to set socket to blocking")?;
                     let conn = Connection::new(socket).with_context(|| {
                         format!("Unable to open connection to bench target {}", self.name)
                     })?;
@@ -102,9 +107,9 @@ impl BenchTarget {
                         return Ok(());
                     } else {
                         return Err(anyhow!(
-                            "Non-Criterion.rs benchmark target {} exited with error code {:?}",
+                            "Non-Criterion.rs benchmark target {} exited with {}",
                             self.name,
-                            exit_status.code()
+                            exit_status
                         ));
                     }
                 }
@@ -184,9 +189,9 @@ impl BenchTarget {
                         return Ok(());
                     } else {
                         return Err(anyhow!(
-                            "Criterion.rs benchmark target {} exited with error code {:?}",
+                            "Criterion.rs benchmark target {} exited with {}",
                             self.name,
-                            exit_status.code()
+                            exit_status
                         ));
                     }
                 }
@@ -204,7 +209,7 @@ impl BenchTarget {
         id: BenchmarkId,
         context: &mut ReportContext,
     ) -> Result<()> {
-        report.benchmark_start(&id, &context);
+        report.benchmark_start(&id, context);
 
         loop {
             let message = conn.recv().with_context(|| {
@@ -219,14 +224,14 @@ impl BenchTarget {
             };
             match message {
                 IncomingMessage::Warmup { nanos } => {
-                    report.warmup(&id, &context, nanos);
+                    report.warmup(&id, context, nanos);
                 }
                 IncomingMessage::MeasurementStart {
                     sample_count,
                     estimate_ns,
                     iter_count,
                 } => {
-                    report.measurement_start(&id, &context, sample_count, estimate_ns, iter_count);
+                    report.measurement_start(&id, context, sample_count, estimate_ns, iter_count);
                 }
                 IncomingMessage::MeasurementComplete {
                     iters,
@@ -236,7 +241,7 @@ impl BenchTarget {
                     benchmark_config,
                 } => {
                     context.plot_config = plot_config;
-                    report.analysis(&id, &context);
+                    report.analysis(&id, context);
 
                     let avg_values: Vec<f64> = iters
                         .iter()
@@ -289,10 +294,10 @@ impl BenchTarget {
 
                     {
                         let formatter = crate::value_formatter::ValueFormatter::new(conn);
-                        report.measurement_complete(&id, &context, &measured_data, &formatter);
+                        report.measurement_complete(&id, context, &measured_data, &formatter);
 
                         match model.load_history(&id) {
-                            Ok(history) => report.history(&context, &id, &history, &formatter),
+                            Ok(history) => report.history(context, &id, &history, &formatter),
                             Err(e) => error!("Failed to load historical data: {:?}", e),
                         }
                     }

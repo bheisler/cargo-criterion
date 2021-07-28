@@ -39,14 +39,14 @@ pub fn iteration_times(
         .margin((5).percent())
         .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
         .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
-        .build_ranged(x_range, y_range)
+        .build_cartesian_2d(x_range, y_range)
         .unwrap();
 
     chart
         .configure_mesh()
         .y_desc(format!("Average Iteration Time ({})", unit))
         .x_label_formatter(&|x| pretty_print_float(*x, true))
-        .line_style_2(&TRANSPARENT)
+        .light_line_style(&TRANSPARENT)
         .draw()
         .unwrap();
 

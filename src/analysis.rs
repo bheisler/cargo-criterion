@@ -40,9 +40,9 @@ pub(crate) fn analysis<'a>(
     let iters = new_sample.iteration_count;
     let values = new_sample.sample_values;
 
-    let avg_values = Sample::new(&new_sample.avg_values);
+    let avg_values = Sample::new(new_sample.avg_values);
 
-    let data = Data::new(&iters, &values);
+    let data = Data::new(iters, values);
     let labeled_sample = tukey::classify(avg_values);
     let (mut distributions, mut estimates) = estimates(avg_values, config);
 
@@ -96,7 +96,7 @@ fn regression(
     )
     .0;
 
-    let point = Slope::fit(&data);
+    let point = Slope::fit(data);
     let (lb, ub) = distribution.confidence_interval(config.confidence_level);
     let se = distribution.std_dev(None);
 
