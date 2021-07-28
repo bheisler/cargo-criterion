@@ -62,7 +62,13 @@ fn configure_log() {
     } else {
         LevelFilter::Warn
     };
-    TermLogger::init(filter, Default::default(), TerminalMode::Stderr).unwrap();
+    TermLogger::init(
+        filter,
+        Default::default(),
+        TerminalMode::Stderr,
+        ColorChoice::Never,
+    )
+    .unwrap();
 }
 
 // TODO: Write unit tests for serialization.
