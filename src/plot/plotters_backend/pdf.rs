@@ -23,7 +23,7 @@ pub fn pdf_full(
 ) {
     let (low_severe, low_mild, high_mild, high_severe) = fences;
     let (not_outlier, mild, severe) = points;
-    let xs_ = Sample::new(&pdf.xs);
+    let xs_ = Sample::new(pdf.xs);
 
     let size = size.unwrap_or(SIZE);
     let root_area = SVGBackend::new(&path, size.into()).into_drawing_area();

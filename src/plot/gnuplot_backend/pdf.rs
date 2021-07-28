@@ -28,7 +28,7 @@ pub fn pdf_full(
         .set(Font(DEFAULT_FONT))
         .set(criterion_plot::Size::from(size.unwrap_or(SIZE)))
         .configure(Axis::BottomX, |a| {
-            let xs_ = Sample::new(&pdf.xs);
+            let xs_ = Sample::new(pdf.xs);
             a.set(Label(format!("Average time ({})", unit)))
                 .set(Range::Limits(xs_.min(), xs_.max()))
         })
