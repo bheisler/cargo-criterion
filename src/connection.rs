@@ -28,15 +28,13 @@ impl std::error::Error for ConnectionError {
 
 #[derive(Debug)]
 #[repr(u16)]
-#[allow(clippy::unknown_clippy_lints)]
-#[allow(clippy::upper_case_acronyms)]
 enum ProtocolFormat {
-    CBOR = 1,
+    Cbor = 1,
 }
 impl ProtocolFormat {
     fn from_u16(format: u16) -> Result<Self, ConnectionError> {
         match format {
-            1 => Ok(ProtocolFormat::CBOR),
+            1 => Ok(ProtocolFormat::Cbor),
             _ => Err(ConnectionError::HelloFailed("Unknown format value sent by Criterion.rs benchmark; please update cargo-criterion.")),
         }
     }
