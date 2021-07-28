@@ -28,6 +28,7 @@ impl std::error::Error for ConnectionError {
 
 #[derive(Debug)]
 #[repr(u16)]
+#[allow(clippy::unknown_clippy_lints)]
 #[allow(clippy::upper_case_acronyms)]
 enum ProtocolFormat {
     CBOR = 1,
