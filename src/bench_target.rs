@@ -4,7 +4,7 @@ use crate::report::{BenchmarkId, Report, ReportContext};
 use anyhow::{anyhow, Context, Result};
 use std::ffi::OsString;
 use std::net::TcpListener;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 /// Structure representing a compiled benchmark executable.
@@ -27,7 +27,7 @@ impl BenchTarget {
     /// will block until the benchmark target terminates.
     pub fn execute(
         &self,
-        criterion_home: &PathBuf,
+        criterion_home: &Path,
         additional_args: &[OsString],
         library_paths: &[PathBuf],
         report: &dyn Report,

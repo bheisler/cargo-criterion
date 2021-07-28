@@ -28,6 +28,7 @@ impl std::error::Error for ConnectionError {
 
 #[derive(Debug)]
 #[repr(u16)]
+#[allow(clippy::upper_case_acronyms)]
 enum ProtocolFormat {
     CBOR = 1,
 }
@@ -257,10 +258,7 @@ pub enum SamplingMethod {
 }
 impl SamplingMethod {
     pub fn is_linear(&self) -> bool {
-        match self {
-            SamplingMethod::Linear => true,
-            _ => false,
-        }
+        matches!(self, SamplingMethod::Linear)
     }
 }
 
