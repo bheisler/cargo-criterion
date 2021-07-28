@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 # [Unreleased]
 ### Fixed
 - Fixed wrong exit code being returned when a panic occurs outside of the function being benchmarked. 
+- MacOS/Windows: Fix connection issue that manifested itself in a few different ways.
+- Use new version of plotters. No new features but it fixes a bug that caused criterion to
+  hang indefinitely.
+
+### Added
+- Load configuration options 'criterion.toml' if 'Criterion.toml' isn't available.
 
 ## [1.0.1] - 2021-01-24
 ### Fixed
