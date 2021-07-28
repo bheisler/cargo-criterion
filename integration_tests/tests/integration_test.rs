@@ -56,7 +56,7 @@ fn execute(args: &[&str], homedir: &Path) -> (Output, Output) {
 
 fn benchmark_names() -> &'static [&'static str] {
     &[
-        "norm",
+        // "norm", // temporarily disabled because tch isn't crossplatform.
         "\"*group/\"/\"*benchmark/\" '",
         "sampling_mode/Auto (short)",
         "sampling_mode/Auto (long)",
@@ -75,7 +75,7 @@ fn benchmark_names() -> &'static [&'static str] {
 
 fn file_safe_benchmark_names() -> &'static [&'static str] {
     &[
-        "norm",
+        // "norm",
         "__group__/__benchmark__ '",
         "sampling_mode/Auto (short)",
         "sampling_mode/Auto (long)",
@@ -94,7 +94,7 @@ fn file_safe_benchmark_names() -> &'static [&'static str] {
 
 fn file_safe_benchmark_group_names() -> &'static [&'static str] {
     &[
-        "norm",
+        // "norm",
         "__group__",
         "sampling_mode",
         "throughput",
@@ -229,11 +229,13 @@ impl AssertionState {
 
             self.assert_file_exists(&report_dir, "MAD.svg");
             self.assert_file_exists(&report_dir, "SD.svg");
+            self.assert_file_exists(&report_dir, "history.svg");
             self.assert_file_exists(&report_dir, "both/pdf.svg");
             self.assert_file_exists(&report_dir, "change/mean.svg");
             self.assert_file_exists(&report_dir, "change/median.svg");
             self.assert_file_exists(&report_dir, "change/t-test.svg");
             self.assert_file_exists(&report_dir, "index.html");
+            self.assert_file_exists(&report_dir, "history.html");
             self.assert_file_exists(&report_dir, "mean.svg");
             self.assert_file_exists(&report_dir, "median.svg");
             self.assert_file_exists(&report_dir, "pdf.svg");

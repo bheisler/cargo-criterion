@@ -44,6 +44,11 @@ jobs:
         with:
           command: test
 
+      - name: Integration tests
+        run: |
+          cd integration_tests
+          cargo test -- --format=pretty --nocapture
+
       - uses: actions-rs/cargo@v1
         name: Check for non-standard formatting
         if: ${{ matrix.rust == 'stable' }}
