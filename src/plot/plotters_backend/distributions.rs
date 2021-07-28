@@ -34,7 +34,7 @@ pub fn abs_distribution(
         )
         .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
         .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
-        .build_ranged(x_range, y_range)
+        .build_cartesian_2d(x_range, y_range)
         .unwrap();
 
     chart
@@ -114,7 +114,7 @@ pub fn rel_distribution(
         )
         .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
         .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
-        .build_ranged(x_min..x_max, y_range.clone())
+        .build_cartesian_2d(x_min..x_max, y_range.clone())
         .unwrap();
 
     chart

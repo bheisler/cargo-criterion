@@ -36,7 +36,7 @@ pub fn pdf_full(
         .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
         .set_label_area_size(LabelAreaPosition::Right, (5).percent_width().min(60))
         .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
-        .build_ranged(xs_.min()..xs_.max(), 0.0..max_iters)
+        .build_cartesian_2d(xs_.min()..xs_.max(), 0.0..max_iters)
         .unwrap()
         .set_secondary_coord(xs_.min()..xs_.max(), 0.0..range.end);
 
@@ -131,7 +131,7 @@ pub fn pdf_thumbnail(
         .margin((5).percent())
         .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
         .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
-        .build_ranged(xs_.min()..xs_.max(), 0.0..y_limit)
+        .build_cartesian_2d(xs_.min()..xs_.max(), 0.0..y_limit)
         .unwrap();
 
     chart
@@ -190,7 +190,7 @@ pub fn pdf_comparison(
         .margin((5).percent())
         .set_label_area_size(LabelAreaPosition::Left, (5).percent_width().min(60))
         .set_label_area_size(LabelAreaPosition::Bottom, (5).percent_height().min(40))
-        .build_ranged(x_range, y_range.clone())
+        .build_cartesian_2d(x_range, y_range.clone())
         .unwrap();
 
     chart
