@@ -210,7 +210,7 @@ fn get_target_directory_from_metadata() -> Result<PathBuf> {
     Ok(path)
 }
 
-/// Parse the command-line arguments, load the Criterion.toml config file, and generate a
+/// Parse the command-line arguments, load the criterion.toml config file, and generate a
 /// configuration object used for the rest of the run.
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::or_fun_call))]
 pub fn configure() -> Result<FullConfig, anyhow::Error> {
@@ -371,7 +371,7 @@ pub fn configure() -> Result<FullConfig, anyhow::Error> {
                 .long("--criterion-manifest-path")
                 .takes_value(true)
                 .value_name("PATH")
-                .help("Path to Criterion.toml"),
+                .help("Path to criterion.toml"),
         )
         .arg(
             Arg::with_name("no-fail-fast")
@@ -526,7 +526,14 @@ Compilation can be customized with the `bench` profile in the manifest.
     let criterion_manifest_file: PathBuf = matches
         .value_of_os("criterion-manifest-file")
         .map(ToOwned::to_owned)
-        .unwrap_or_else(|| "Criterion.toml".into())
+        .unwrap_or_else(|| {
+            // Support both capitalized and un-capitalized configuration files.
+            if PathBuf::from("Criterion.toml").exists() {
+                "Criterion.toml".into()
+            } else {
+                "criterion.toml".into()
+            }
+        })
         .into();
 
     let toml_config = load_toml_file(&criterion_manifest_file)?;
@@ -688,7 +695,7 @@ Compilation can be customized with the `bench` profile in the manifest.
     Ok(configuration)
 }
 
-/// Load & parse the Criterion.toml file (if present).
+/// Load & parse the criterion.toml file (if present).
 fn load_toml_file(toml_path: &Path) -> Result<TomlConfig, anyhow::Error> {
     if !toml_path.exists() {
         return Ok(TomlConfig::default());
