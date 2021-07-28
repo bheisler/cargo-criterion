@@ -608,7 +608,7 @@ impl Report for CliReport {
                 if !different_mean {
                     explanation_str = "No change in performance detected.".to_owned();
                 } else {
-                    let comparison = compare_to_threshold(&mean_est, comp.noise_threshold);
+                    let comparison = compare_to_threshold(mean_est, comp.noise_threshold);
                     match comparison {
                         ComparisonResult::Improved => {
                             point_estimate_str = self.green(self.bold(point_estimate_str));

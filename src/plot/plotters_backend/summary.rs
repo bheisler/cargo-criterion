@@ -29,12 +29,12 @@ pub fn line_comparison(
 
     match axis_scale {
         AxisScale::Linear => draw_line_comparison_figure(
-            colors, root_area, &unit, x_range, y_range, value_type, lines,
+            colors, root_area, unit, x_range, y_range, value_type, lines,
         ),
         AxisScale::Logarithmic => draw_line_comparison_figure(
             colors,
             root_area,
-            &unit,
+            unit,
             x_range.log_scale(),
             y_range.log_scale(),
             value_type,
@@ -87,7 +87,7 @@ fn draw_line_comparison_figure<XR: AsRangedCoord<Value = f64>, YR: AsRangedCoord
             )
             .unwrap();
         if let Some(name) = name {
-            let name: &str = &*name;
+            let name: &str = *name;
             series.label(name).legend(move |(x, y)| {
                 Rectangle::new(
                     [(x, y - 5), (x + 20, y + 5)],
@@ -125,15 +125,10 @@ pub fn violin(
         .unwrap();
 
     match axis_scale {
-        AxisScale::Linear => draw_violin_figure(colors, root_area, &unit, x_range, y_range, lines),
-        AxisScale::Logarithmic => draw_violin_figure(
-            colors,
-            root_area,
-            &unit,
-            x_range.log_scale(),
-            y_range,
-            lines,
-        ),
+        AxisScale::Linear => draw_violin_figure(colors, root_area, unit, x_range, y_range, lines),
+        AxisScale::Logarithmic => {
+            draw_violin_figure(colors, root_area, unit, x_range.log_scale(), y_range, lines)
+        }
     }
 }
 

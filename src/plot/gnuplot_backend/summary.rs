@@ -37,8 +37,6 @@ pub fn line_comparison(
                 .set(axis_scale.to_gnuplot())
         });
 
-    let mut i = 0;
-
     figure.configure(Axis::LeftY, |a| {
         a.configure(Grid::Major, |g| g.show())
             .configure(Grid::Minor, |g| g.hide())
@@ -46,7 +44,7 @@ pub fn line_comparison(
             .set(axis_scale.to_gnuplot())
     });
 
-    for (name, curve) in lines {
+    for (i, (name, curve)) in lines.iter().enumerate() {
         let function_name = name.map(|string| gnuplot_escape(string));
 
         figure
@@ -75,8 +73,6 @@ pub fn line_comparison(
                         .set(colors.comparison_colors[i % colors.comparison_colors.len()])
                 },
             );
-
-        i += 1;
     }
 
     figure

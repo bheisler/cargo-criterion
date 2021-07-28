@@ -197,7 +197,7 @@ impl Report for JsonMessageReport {
                 let change = if !different_mean {
                     ChangeType::NoChange
                 } else {
-                    let comparison = compare_to_threshold(&mean_est, comparison.noise_threshold);
+                    let comparison = compare_to_threshold(mean_est, comparison.noise_threshold);
                     match comparison {
                         ComparisonResult::Improved => ChangeType::Improved,
                         ComparisonResult::Regressed => ChangeType::Regressed,

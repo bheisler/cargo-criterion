@@ -24,7 +24,7 @@ use tinytemplate::TinyTemplate;
 
 const THUMBNAIL_SIZE: Option<Size> = Some(Size(450, 300));
 
-const COMMON_CSS: &'static str = include_str!("common.css");
+const COMMON_CSS: &str = include_str!("common.css");
 
 fn save<D, P>(data: &D, path: &P) -> Result<()>
 where
@@ -478,7 +478,7 @@ impl Report for Html {
             let samples_with_function: Vec<_> = benchmark_group
                 .benchmarks
                 .iter()
-                .filter(|(ref id, _)| id.function_id.as_ref() == Some(&function_id))
+                .filter(|(id, _)| id.function_id.as_ref() == Some(function_id))
                 .collect();
 
             if samples_with_function.len() > 1 {
@@ -500,7 +500,7 @@ impl Report for Html {
                 .benchmarks
                 .iter()
                 .by_ref()
-                .filter(|(ref id, _)| id.value_str.as_ref() == Some(&value_str))
+                .filter(|(id, _)| id.value_str.as_ref() == Some(value_str))
                 .collect();
 
             if samples_with_value.len() > 1 {
@@ -535,7 +535,7 @@ impl Report for Html {
         let groups = model
             .groups
             .iter()
-            .map(|(id, group)| BenchmarkGroup::new(output_directory, id, &group))
+            .map(|(id, group)| BenchmarkGroup::new(output_directory, id, group))
             .collect::<Vec<BenchmarkGroup<'_>>>();
 
         try_else_return!(mkdirp(&output_directory));
@@ -741,7 +741,7 @@ impl Html {
             if !different_mean {
                 explanation_str = "No change in performance detected.".to_owned();
             } else {
-                let comparison = compare_to_threshold(&mean_est, comp.noise_threshold);
+                let comparison = compare_to_threshold(mean_est, comp.noise_threshold);
                 match comparison {
                     ComparisonResult::Improved => {
                         explanation_str = "Performance has improved.".to_owned();
@@ -927,12 +927,12 @@ impl Html {
 
         self.plotter.borrow_mut().violin(plot_ctx, formatter, data);
 
-        let value_types: Vec<_> = data.iter().map(|(ref id, _)| id.value_type()).collect();
+        let value_types: Vec<_> = data.iter().map(|(id, _)| id.value_type()).collect();
         let mut line_path = None;
 
         if value_types.iter().all(|x| x == &value_types[0]) {
             if let Some(value_type) = value_types[0] {
-                let values: Vec<_> = data.iter().map(|(ref id, _)| id.as_number()).collect();
+                let values: Vec<_> = data.iter().map(|(id, _)| id.as_number()).collect();
                 if values.iter().any(|x| x != &values[0]) {
                     self.plotter
                         .borrow_mut()
@@ -945,7 +945,7 @@ impl Html {
         let path_prefix = if full_summary { ".." } else { "../.." };
         let benchmarks = data
             .iter()
-            .map(|(ref id, _)| {
+            .map(|(id, _)| {
                 IndividualBenchmark::from_id(&report_context.output_directory, path_prefix, id)
             })
             .collect();

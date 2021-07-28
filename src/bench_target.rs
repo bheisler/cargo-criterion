@@ -4,7 +4,7 @@ use crate::report::{BenchmarkId, Report, ReportContext};
 use anyhow::{anyhow, Context, Result};
 use std::ffi::OsString;
 use std::net::TcpListener;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 /// Structure representing a compiled benchmark executable.
@@ -27,7 +27,7 @@ impl BenchTarget {
     /// will block until the benchmark target terminates.
     pub fn execute(
         &self,
-        criterion_home: &PathBuf,
+        criterion_home: &Path,
         additional_args: &[OsString],
         library_paths: &[PathBuf],
         report: &dyn Report,
@@ -210,7 +210,7 @@ impl BenchTarget {
         id: BenchmarkId,
         context: &mut ReportContext,
     ) -> Result<()> {
-        report.benchmark_start(&id, &context);
+        report.benchmark_start(&id, context);
 
         loop {
             let message = conn.recv().with_context(|| {
@@ -225,14 +225,14 @@ impl BenchTarget {
             };
             match message {
                 IncomingMessage::Warmup { nanos } => {
-                    report.warmup(&id, &context, nanos);
+                    report.warmup(&id, context, nanos);
                 }
                 IncomingMessage::MeasurementStart {
                     sample_count,
                     estimate_ns,
                     iter_count,
                 } => {
-                    report.measurement_start(&id, &context, sample_count, estimate_ns, iter_count);
+                    report.measurement_start(&id, context, sample_count, estimate_ns, iter_count);
                 }
                 IncomingMessage::MeasurementComplete {
                     iters,
@@ -242,7 +242,7 @@ impl BenchTarget {
                     benchmark_config,
                 } => {
                     context.plot_config = plot_config;
-                    report.analysis(&id, &context);
+                    report.analysis(&id, context);
 
                     let avg_values: Vec<f64> = iters
                         .iter()
@@ -295,10 +295,10 @@ impl BenchTarget {
 
                     {
                         let formatter = crate::value_formatter::ValueFormatter::new(conn);
-                        report.measurement_complete(&id, &context, &measured_data, &formatter);
+                        report.measurement_complete(&id, context, &measured_data, &formatter);
 
                         match model.load_history(&id) {
-                            Ok(history) => report.history(&context, &id, &history, &formatter),
+                            Ok(history) => report.history(context, &id, &history, &formatter),
                             Err(e) => error!("Failed to load historical data: {:?}", e),
                         }
                     }

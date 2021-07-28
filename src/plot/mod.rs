@@ -569,7 +569,7 @@ impl<B: PlottingBackend> PlotGenerator<B> {
 
         let points = Points {
             xs: &xs,
-            ys: &scaled_y,
+            ys: scaled_y,
         };
         self.backend.iteration_times(
             ctx.id,
@@ -609,11 +609,11 @@ impl<B: PlottingBackend> PlotGenerator<B> {
 
         let current_points = Points {
             xs: &current_xs,
-            ys: &scaled_current_y,
+            ys: scaled_current_y,
         };
         let base_points = Points {
             xs: &base_xs,
-            ys: &scaled_base_y,
+            ys: scaled_base_y,
         };
         self.backend.iteration_times(
             ctx.id,
@@ -817,7 +817,7 @@ impl<B: PlottingBackend> PlotGenerator<B> {
             format!("Iterations (x 10^{})", exponent)
         };
 
-        let (xs, ys) = kde::sweep(&scaled_avg_times, KDE_POINTS, None);
+        let (xs, ys) = kde::sweep(scaled_avg_times, KDE_POINTS, None);
         let (lost, lomt, himt, hist) = avg_times.fences();
         let mut fences = [lost, lomt, himt, hist];
         let _ = formatter.scale_values(typical, &mut fences);
