@@ -23,13 +23,13 @@ const DARK_RED: Color = Color { r: 7, g: 26, b: 28 };
 const NUM_COLORS: usize = 8;
 #[rustfmt::skip]
 static COMPARISON_COLORS: [Color; NUM_COLORS] = [
-    Color { r: 8, g: 34, b: 34 },
-    Color { r: 6, g: 139, b: 87 },
+    Color { r: 178, g: 34, b: 34 },
+    Color { r: 46, g: 139, b: 87 },
     Color { r: 0, g: 139, b: 139 },
-    Color { r: 5, g: 215, b: 0 },
+    Color { r: 255, g: 215, b: 0 },
     Color { r: 0, g: 0, b: 139 },
-    Color { r: 0, g: 20, b: 60 },
-    Color { r: 9, g: 0, b: 139 },
+    Color { r: 220, g: 20, b: 60 },
+    Color { r: 139, g: 0, b: 139 },
     Color { r: 0, g: 255, b: 127 },
 ];
 
