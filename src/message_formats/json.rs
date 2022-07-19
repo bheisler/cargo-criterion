@@ -1,5 +1,4 @@
 use crate::connection::Throughput as ThroughputEnum;
-use crate::estimate::Estimate;
 use crate::model::BenchmarkGroup;
 use crate::report::{
     compare_to_threshold, BenchmarkId, ComparisonResult, MeasurementData, Report, ReportContext,
@@ -10,41 +9,10 @@ use serde_derive::Serialize;
 use serde_json::json;
 use std::io::{stdout, Write};
 
+use super::ConfidenceInterval;
+
 trait Message: serde::ser::Serialize {
     fn reason() -> &'static str;
-}
-
-#[derive(Serialize)]
-struct ConfidenceInterval {
-    estimate: f64,
-    lower_bound: f64,
-    upper_bound: f64,
-    unit: String,
-}
-impl ConfidenceInterval {
-    fn from_estimate(estimate: &Estimate, value_formatter: &ValueFormatter) -> ConfidenceInterval {
-        let mut array = [
-            estimate.point_estimate,
-            estimate.confidence_interval.lower_bound,
-            estimate.confidence_interval.upper_bound,
-        ];
-        let unit = value_formatter.scale_for_machines(&mut array);
-        let [estimate, lower_bound, upper_bound] = array;
-        ConfidenceInterval {
-            estimate,
-            lower_bound,
-            upper_bound,
-            unit,
-        }
-    }
-    fn from_percent(estimate: &Estimate) -> ConfidenceInterval {
-        ConfidenceInterval {
-            estimate: estimate.point_estimate,
-            lower_bound: estimate.confidence_interval.lower_bound,
-            upper_bound: estimate.confidence_interval.upper_bound,
-            unit: "%".to_owned(),
-        }
-    }
 }
 
 #[derive(Serialize)]

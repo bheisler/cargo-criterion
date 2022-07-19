@@ -146,11 +146,13 @@ impl PlottingBackend {
 #[derive(Debug)]
 pub enum MessageFormat {
     Json,
+    OpenMetrics,
 }
 impl MessageFormat {
     fn from_str(s: &str) -> MessageFormat {
         match s {
             "json" => MessageFormat::Json,
+            "openmetrics" => MessageFormat::OpenMetrics,
             other => panic!("Unknown message format: {}", other),
         }
     }
@@ -422,10 +424,10 @@ bencher: Emulates the output format of the bencher crate and nightly-only libtes
             .arg(Arg::with_name("message-format")
                 .long("message-format")
                 .takes_value(true)
-                .possible_values(&["json"])
+                .possible_values(&["json", "openmetrics"])
                 .help("If set, machine-readable output of the requested format will be printed to stdout.")
                 .long_help(
-"Change the machine-readable output format. Possible values are [json].
+"Change the machine-readable output format. Possible values are [json, openmetrics].
 
 Machine-readable information on the benchmarks will be printed in the requested format to stdout.
 All of cargo-criterion's other output will be printed to stderr.
