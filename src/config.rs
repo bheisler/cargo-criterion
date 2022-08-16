@@ -62,7 +62,7 @@ impl Default for Colors {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 #[serde(default)]
 /// Struct to hold the various configuration settings that we can read from the TOML config file.
 struct TomlConfig {
@@ -76,16 +76,6 @@ struct TomlConfig {
     /// The colors used for the charts. Users may wish to override this to accommodate
     /// colorblindness, or just to make things look prettier.
     pub colors: Colors,
-}
-impl Default for TomlConfig {
-    fn default() -> Self {
-        TomlConfig {
-            criterion_home: None,
-            output_format: None,
-            plotting_backend: None,
-            colors: Default::default(),
-        }
-    }
 }
 
 #[derive(Debug)]

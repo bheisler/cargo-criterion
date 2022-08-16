@@ -35,7 +35,7 @@ mod summary;
 mod t_test;
 
 fn gnuplot_escape(string: &str) -> String {
-    string.replace("_", "\\_").replace("'", "''")
+    string.replace('_', "\\_").replace('\'', "''")
 }
 
 static DEFAULT_FONT: &str = "Helvetica";

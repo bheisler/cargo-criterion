@@ -60,10 +60,9 @@ pub struct Connection {
     socket: TcpStream,
     receive_buffer: Vec<u8>,
     send_buffer: Vec<u8>,
-
-    criterion_rs_version: [u8; 3],
-    protocol_version: u16,
-    protocol_format: ProtocolFormat,
+    // criterion_rs_version: [u8; 3],
+    // protocol_version: u16,
+    // protocol_format: ProtocolFormat,
 }
 impl Connection {
     /// Perform the connection handshake and wrap the TCP stream in a Connection object if successful.
@@ -103,10 +102,9 @@ impl Connection {
             socket,
             receive_buffer: vec![],
             send_buffer: vec![],
-
-            criterion_rs_version,
-            protocol_version,
-            protocol_format,
+            // criterion_rs_version,
+            // protocol_version,
+            // protocol_format,
         })
     }
 

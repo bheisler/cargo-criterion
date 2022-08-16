@@ -64,8 +64,8 @@ pub(crate) fn analysis<'a>(
             relative_distributions,
             significance_threshold: config.significance_level,
             noise_threshold: config.noise_threshold,
-            base_iter_counts: old_sample.iteration_count.iter().copied().collect(),
-            base_sample_times: old_sample.sample_values.iter().copied().collect(),
+            base_iter_counts: old_sample.iteration_count.to_vec(),
+            base_sample_times: old_sample.sample_values.to_vec(),
             base_avg_times,
             base_estimates: old_estimates.clone(),
         })
