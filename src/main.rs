@@ -43,8 +43,9 @@ use crate::config::{OutputFormat, PlottingBackend, SelfConfig, TextColor};
 use crate::connection::{AxisScale, PlotConfiguration};
 use crate::plot::Plotter;
 use crate::report::{Report, ReportContext};
-use anyhow::Error;
+use anyhow::{Error, Context};
 use lazy_static::lazy_static;
+use std::path::PathBuf;
 
 lazy_static! {
     static ref DEBUG_ENABLED: bool = std::env::var_os("CRITERION_DEBUG").is_some();
@@ -78,14 +79,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     configure_log();
 
     // First, load the config file and parse the command-line args.
-    let configuration = config::configure()?;
-    let self_config = &configuration.self_config;
+    let self_config: config::SelfConfig;
+    let mut targets = vec![];
+    let mut library_paths = vec![];
+    let mut additional_args = vec![];
 
-    // Launch cargo to compile the crate and produce a list of the benchmark targets to run.
-    let compile::CompiledBenchmarks {
-        targets,
-        library_paths,
-    } = compile::compile(self_config.debug_build, &configuration.cargo_args)?;
+    match config::configure()? {
+        config::Config::Precompiled(config) => {
+            self_config = config.self_config;
+
+            let vec_size = config.pre_compiled_bins_path.len();
+            let mut counter: usize = 0;
+
+            while vec_size > counter {
+                targets.push(bench_target::BenchTarget {
+                    name: filename_from_pathbuf(&config.pre_compiled_bins_path[counter])?,
+                    executable: config.pre_compiled_bins_path[counter].to_path_buf().canonicalize()?,
+                });
+
+                counter += 1;
+            }
+        },
+        config::Config::ToCompile(config) => {
+            self_config = config.self_config;
+            additional_args = config.additional_args;
+
+            // Launch cargo to compile the crate and produce a list of the benchmark targets to run
+            let c = compile::compile(self_config.debug_build, &config.cargo_args)?;
+            targets = c.targets;
+            library_paths = c.library_paths;
+        }
+    }
 
     // Load the saved measurements from the last run.
     let mut run_model = model::Model::load(
@@ -96,10 +120,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Set up the reports. These receive notifications as the benchmarks proceed and generate output for the user.
-    let cli_report = configure_cli_output(self_config);
+    let cli_report = configure_cli_output(&self_config);
     let bencher_report = crate::report::BencherReport;
-    let html_report = get_plotter(self_config)?.map(|plotter| crate::html::Html::new(plotter));
-    let machine_report = message_formats::create_machine_report(self_config);
+    let html_report = get_plotter(&self_config)?.map(|plotter| crate::html::Html::new(plotter));
+    let machine_report = message_formats::create_machine_report(&self_config);
 
     let mut reports: Vec<&dyn crate::report::Report> = Vec::new();
     match self_config.output_format {
@@ -122,7 +146,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!("Executing {} - {:?}", bench.name, bench.executable);
             let err = bench.execute(
                 &self_config.criterion_home,
-                &configuration.additional_args,
+                &additional_args,
                 &library_paths,
                 &reports,
                 &mut run_model,
@@ -252,4 +276,15 @@ impl DurationExt for std::time::Duration {
     fn to_nanos(&self) -> u64 {
         self.as_secs() * NANOS_PER_SEC + u64::from(self.subsec_nanos())
     }
+}
+
+/// Convert a PathBuf reference to a String
+#[inline(always)]
+fn filename_from_pathbuf(path: &PathBuf) -> Result<String, anyhow::Error> {
+    // No good looking way to covert a PathBuf reference filename to a String
+    return Ok(path.file_name()
+              .context("Incorrect binary path")?
+              .to_str()
+              .context("Invalid UTF8 in binary name")?
+              .to_string());
 }
