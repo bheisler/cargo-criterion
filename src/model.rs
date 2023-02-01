@@ -7,6 +7,7 @@ use linked_hash_map::LinkedHashMap;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fs::File;
+use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
@@ -16,6 +17,7 @@ pub struct Benchmark {
     pub previous_stats: Option<SavedStatistics>,
     pub target: Option<String>,
 }
+
 impl Benchmark {
     fn new(stats: SavedStatistics) -> Self {
         Benchmark {
@@ -36,6 +38,7 @@ pub struct BenchmarkGroup {
     pub benchmarks: LinkedHashMap<BenchmarkId, Benchmark>,
     pub target: Option<String>,
 }
+
 impl Default for BenchmarkGroup {
     fn default() -> Self {
         BenchmarkGroup {
@@ -61,6 +64,7 @@ pub struct Model {
     history_id: Option<String>,
     history_description: Option<String>,
 }
+
 impl Model {
     /// Load the model from disk. The output directory is scanned for benchmark files. Any files
     /// found are loaded into the model so that we can include them in the reports even if this
@@ -98,19 +102,22 @@ impl Model {
         if !benchmark_path.is_file() {
             return Ok(());
         }
-        let mut benchmark_file = File::open(&benchmark_path)
+        let benchmark_file = File::open(benchmark_path)
             .with_context(|| format!("Failed to open benchmark file {:?}", benchmark_path))?;
-        let benchmark_record: BenchmarkRecord = serde_cbor::from_reader(&mut benchmark_file)
-            .with_context(|| format!("Failed to read benchmark file {:?}", benchmark_path))?;
+        let benchmark_record: BenchmarkRecord =
+            serde_cbor::from_reader(BufReader::new(benchmark_file))
+                .with_context(|| format!("Failed to read benchmark file {:?}", benchmark_path))?;
 
         let measurement_path = benchmark_path.with_file_name(benchmark_record.latest_record);
         if !measurement_path.is_file() {
             return Ok(());
         }
-        let mut measurement_file = File::open(&measurement_path)
+        let measurement_file = File::open(&measurement_path)
             .with_context(|| format!("Failed to open measurement file {:?}", measurement_path))?;
-        let saved_stats: SavedStatistics = serde_cbor::from_reader(&mut measurement_file)
-            .with_context(|| format!("Failed to read measurement file {:?}", measurement_path))?;
+        let saved_stats: SavedStatistics =
+            serde_cbor::from_reader(BufReader::new(measurement_file)).with_context(|| {
+                format!("Failed to read measurement file {:?}", measurement_path)
+            })?;
 
         self.groups
             .entry(benchmark_record.id.group_id.clone())
@@ -179,11 +186,11 @@ impl Model {
         };
 
         let measurement_path = dir.join(&measurement_name);
-        let mut measurement_file = File::create(&measurement_path)
+        let measurement_file = File::create(&measurement_path)
             .with_context(|| format!("Failed to create measurement file {:?}", measurement_path))?;
-        serde_cbor::to_writer(&mut measurement_file, &saved_stats).with_context(|| {
-            format!("Failed to save measurements to file {:?}", measurement_path)
-        })?;
+        serde_cbor::to_writer(BufWriter::new(measurement_file), &saved_stats).with_context(
+            || format!("Failed to save measurements to file {:?}", measurement_path),
+        )?;
 
         let record = BenchmarkRecord {
             id: id.into(),
@@ -191,9 +198,9 @@ impl Model {
         };
 
         let benchmark_path = dir.join("benchmark.cbor");
-        let mut benchmark_file = File::create(&benchmark_path)
+        let benchmark_file = File::create(&benchmark_path)
             .with_context(|| format!("Failed to create benchmark file {:?}", benchmark_path))?;
-        serde_cbor::to_writer(&mut benchmark_file, &record)
+        serde_cbor::to_writer(BufWriter::new(benchmark_file), &record)
             .with_context(|| format!("Failed to save benchmark file {:?}", benchmark_path))?;
 
         let benchmark_entry = self
@@ -243,10 +250,10 @@ impl Model {
         let dir = path!(&self.data_directory, id.as_directory_name());
 
         fn load_from(measurement_path: &Path) -> Result<SavedStatistics> {
-            let mut measurement_file = File::open(&measurement_path).with_context(|| {
+            let measurement_file = File::open(measurement_path).with_context(|| {
                 format!("Failed to open measurement file {:?}", measurement_path)
             })?;
-            serde_cbor::from_reader(&mut measurement_file)
+            serde_cbor::from_reader(BufReader::new(measurement_file))
                 .with_context(|| format!("Failed to read measurement file {:?}", measurement_path))
         }
 
@@ -286,6 +293,7 @@ pub struct SavedBenchmarkId {
     value_str: Option<String>,
     throughput: Option<Throughput>,
 }
+
 impl From<BenchmarkId> for SavedBenchmarkId {
     fn from(other: BenchmarkId) -> Self {
         SavedBenchmarkId {
@@ -296,11 +304,13 @@ impl From<BenchmarkId> for SavedBenchmarkId {
         }
     }
 }
+
 impl From<&BenchmarkId> for SavedBenchmarkId {
     fn from(other: &BenchmarkId) -> Self {
         other.clone().into()
     }
 }
+
 impl From<SavedBenchmarkId> for BenchmarkId {
     fn from(other: SavedBenchmarkId) -> Self {
         BenchmarkId::new(
@@ -311,6 +321,7 @@ impl From<SavedBenchmarkId> for BenchmarkId {
         )
     }
 }
+
 impl From<&SavedBenchmarkId> for BenchmarkId {
     fn from(other: &SavedBenchmarkId) -> Self {
         other.into()
