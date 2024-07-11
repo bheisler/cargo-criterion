@@ -245,6 +245,7 @@ pub struct PlotConfiguration {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Throughput {
     Bytes(u64),
+    BytesDecimal(u64),
     Elements(u64),
 }
 
