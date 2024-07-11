@@ -23,7 +23,7 @@ struct Throughput {
 impl From<&ThroughputEnum> for Throughput {
     fn from(other: &ThroughputEnum) -> Self {
         match other {
-            ThroughputEnum::Bytes(bytes) => Throughput {
+            ThroughputEnum::Bytes(bytes) | ThroughputEnum::BytesDecimal(bytes) => Throughput {
                 per_iteration: *bytes,
                 unit: "bytes".to_owned(),
             },
