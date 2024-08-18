@@ -177,13 +177,25 @@ pub struct SelfConfig {
 
 /// Overall struct that represents all of the configuration data for this run.
 #[derive(Debug)]
-pub struct FullConfig {
+pub struct ToCompileConfig {
     /// The config settings for cargo-criterion
     pub self_config: SelfConfig,
     /// The arguments we pass through to cargo bench
     pub cargo_args: Vec<OsString>,
     /// The additional arguments we pass through to the benchmark executables
     pub additional_args: Vec<OsString>,
+}
+
+pub struct PrecompiledConfig {
+    /// The config settings for cargo-criterion
+    pub self_config: SelfConfig,
+    /// The Paths for precompiled binaries
+    pub pre_compiled_bins_path: Vec<PathBuf>
+}
+
+pub enum Config {
+    ToCompile(ToCompileConfig),
+    Precompiled(PrecompiledConfig)
 }
 
 /// Call `cargo criterion` and parse the output to get the path to the target directory.
@@ -205,7 +217,7 @@ fn get_target_directory_from_metadata() -> Result<PathBuf> {
 /// Parse the command-line arguments, load the criterion.toml config file, and generate a
 /// configuration object used for the rest of the run.
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::or_fun_call))]
-pub fn configure() -> Result<FullConfig, anyhow::Error> {
+pub fn configure() -> Result<Config, anyhow::Error> {
     use clap::{App, AppSettings, Arg};
 
     let matches = App::new("cargo-criterion")
@@ -379,7 +391,7 @@ pub fn configure() -> Result<FullConfig, anyhow::Error> {
 not be optimized. This may be useful to reduce compile time when benchmarking code written in a
 different language (eg. external C modules).
 
-Note however that it will tend to increase the measurement overhead, as the measurement loops 
+Note however that it will tend to increase the measurement overhead, as the measurement loops
 in the benchmark will not be optimized either. This may result in less-accurate measurements.
 ")
         )
@@ -484,6 +496,14 @@ See the documentation for details on the data printed by each format.
                 .help("If specified, only run benches with names that match this regex"),
         )
         .arg(
+            Arg::with_name("precompiled_bins")
+                .long("--precompiled-bins")
+                .takes_value(true)
+                .value_name("PATH")
+                .multiple(true)
+                .help("Run precompiled benchmark binaries within Criterion"),
+        )
+        .arg(
             Arg::with_name("args")
                 .takes_value(true)
                 .multiple(true)
@@ -492,8 +512,8 @@ See the documentation for details on the data printed by each format.
         .after_help(
             "\
 The benchmark filtering argument BENCHNAME and all the arguments following the
-two dashes (`--`) are passed to the benchmark binaries and thus Criterion.rs. 
-If you're passing arguments to both Cargo and the binary, the ones after `--` go 
+two dashes (`--`) are passed to the benchmark binaries and thus Criterion.rs.
+If you're passing arguments to both Cargo and the binary, the ones after `--` go
 to the binary, the ones before go to Cargo. For details about Criterion.rs' arguments see
 the output of `cargo criterion -- --help`.
 
@@ -533,99 +553,107 @@ Compilation can be customized with the `bench` profile in the manifest.
     // Many arguments have to be passed along to Cargo, so construct the list of cargo arguments
     // here.
     let mut cargo_args: Vec<OsString> = vec![];
-    if matches.is_present("lib") {
-        cargo_args.push("--lib".into());
-    }
-    if let Some(values) = matches.values_of_os("bin") {
-        cargo_args.push("--bin".into());
-        cargo_args.extend(values.map(ToOwned::to_owned));
-    }
-    if matches.is_present("bins") {
-        cargo_args.push("--bins".into());
-    }
-    if let Some(values) = matches.values_of_os("example") {
-        cargo_args.push("--example".into());
-        cargo_args.extend(values.map(ToOwned::to_owned));
-    }
-    if matches.is_present("examples") {
-        cargo_args.push("--examples".into());
-    }
-    if let Some(values) = matches.values_of_os("test") {
-        cargo_args.push("--test".into());
-        cargo_args.extend(values.map(ToOwned::to_owned));
-    }
-    if matches.is_present("tests") {
-        cargo_args.push("--tests".into());
-    }
-    if let Some(values) = matches.values_of_os("bench") {
-        cargo_args.push("--bench".into());
-        cargo_args.extend(values.map(ToOwned::to_owned));
-    }
-    if matches.is_present("benches") {
-        cargo_args.push("--benches".into());
-    }
-    if matches.is_present("all-targets") {
-        cargo_args.push("--all-targets".into());
-    }
-    if let Some(values) = matches.values_of_os("package") {
-        cargo_args.push("--package".into());
-        cargo_args.extend(values.map(ToOwned::to_owned));
-    }
-    if matches.is_present("all") {
-        cargo_args.push("--all".into());
-    }
-    if matches.is_present("workspace") {
-        cargo_args.push("--workspace".into());
-    }
-    if let Some(values) = matches.values_of_os("exclude") {
-        cargo_args.push("--exclude".into());
-        cargo_args.extend(values.map(ToOwned::to_owned));
-    }
-    if let Some(value) = matches.value_of_os("jobs") {
-        cargo_args.push("--jobs".into());
-        cargo_args.push(value.to_owned());
-    }
-    if let Some(values) = matches.values_of_os("features") {
-        cargo_args.push("--features".into());
-        cargo_args.extend(values.map(ToOwned::to_owned));
-    }
-    if matches.is_present("all-features") {
-        cargo_args.push("--all-features".into());
-    }
-    if matches.is_present("no-default-features") {
-        cargo_args.push("--no-default-features".into());
-    }
-    if let Some(value) = matches.value_of_os("target") {
-        cargo_args.push("--target".into());
-        cargo_args.push(value.to_owned());
-    }
-    if let Some(value) = matches.value_of_os("target-dir") {
-        cargo_args.push("--target-dir".into());
-        cargo_args.push(value.to_owned());
-    }
-    if let Some(value) = matches.value_of_os("manifest-path") {
-        cargo_args.push("--manifest-path".into());
-        cargo_args.push(value.to_owned());
-    }
-    for _ in 0..matches.occurrences_of("verbose") {
-        cargo_args.push("--verbose".into());
-    }
-    if let Some(value) = matches.value_of_os("color") {
-        cargo_args.push("--color".into());
-        cargo_args.push(value.to_owned());
-    }
-    if matches.is_present("frozen") {
-        cargo_args.push("--frozen".into());
-    }
-    if matches.is_present("locked") {
-        cargo_args.push("--locked".into());
-    }
-    if matches.is_present("offline") {
-        cargo_args.push("--offline".into());
-    }
-    if let Some(values) = matches.values_of_os("unstable_flags") {
-        cargo_args.push("-Z".into());
-        cargo_args.extend(values.map(ToOwned::to_owned));
+    let mut pre_compiled_bins_path: Vec<PathBuf> = vec![];
+
+    // Avoid all cargo args parsing if precompiled binaries flag is given, precompiled binaries no
+    // not need to execute Cargo.
+    if let Some(values) = matches.values_of_os("precompiled_bins") {
+        pre_compiled_bins_path.extend(values.map(|x| x.into()));
+    } else {
+        if matches.is_present("lib") {
+            cargo_args.push("--lib".into());
+        }
+        if let Some(values) = matches.values_of_os("bin") {
+            cargo_args.push("--bin".into());
+            cargo_args.extend(values.map(ToOwned::to_owned));
+        }
+        if matches.is_present("bins") {
+            cargo_args.push("--bins".into());
+        }
+        if let Some(values) = matches.values_of_os("example") {
+            cargo_args.push("--example".into());
+            cargo_args.extend(values.map(ToOwned::to_owned));
+        }
+        if matches.is_present("examples") {
+            cargo_args.push("--examples".into());
+        }
+        if let Some(values) = matches.values_of_os("test") {
+            cargo_args.push("--test".into());
+            cargo_args.extend(values.map(ToOwned::to_owned));
+        }
+        if matches.is_present("tests") {
+            cargo_args.push("--tests".into());
+        }
+        if let Some(values) = matches.values_of_os("bench") {
+            cargo_args.push("--bench".into());
+            cargo_args.extend(values.map(ToOwned::to_owned));
+        }
+        if matches.is_present("benches") {
+            cargo_args.push("--benches".into());
+        }
+        if matches.is_present("all-targets") {
+            cargo_args.push("--all-targets".into());
+        }
+        if let Some(values) = matches.values_of_os("package") {
+            cargo_args.push("--package".into());
+            cargo_args.extend(values.map(ToOwned::to_owned));
+        }
+        if matches.is_present("all") {
+            cargo_args.push("--all".into());
+        }
+        if matches.is_present("workspace") {
+            cargo_args.push("--workspace".into());
+        }
+        if let Some(values) = matches.values_of_os("exclude") {
+            cargo_args.push("--exclude".into());
+            cargo_args.extend(values.map(ToOwned::to_owned));
+        }
+        if let Some(value) = matches.value_of_os("jobs") {
+            cargo_args.push("--jobs".into());
+            cargo_args.push(value.to_owned());
+        }
+        if let Some(values) = matches.values_of_os("features") {
+            cargo_args.push("--features".into());
+            cargo_args.extend(values.map(ToOwned::to_owned));
+        }
+        if matches.is_present("all-features") {
+            cargo_args.push("--all-features".into());
+        }
+        if matches.is_present("no-default-features") {
+            cargo_args.push("--no-default-features".into());
+        }
+        if let Some(value) = matches.value_of_os("target") {
+            cargo_args.push("--target".into());
+            cargo_args.push(value.to_owned());
+        }
+        if let Some(value) = matches.value_of_os("target-dir") {
+            cargo_args.push("--target-dir".into());
+            cargo_args.push(value.to_owned());
+        }
+        if let Some(value) = matches.value_of_os("manifest-path") {
+            cargo_args.push("--manifest-path".into());
+            cargo_args.push(value.to_owned());
+        }
+        for _ in 0..matches.occurrences_of("verbose") {
+            cargo_args.push("--verbose".into());
+        }
+        if let Some(value) = matches.value_of_os("color") {
+            cargo_args.push("--color".into());
+            cargo_args.push(value.to_owned());
+        }
+        if matches.is_present("frozen") {
+            cargo_args.push("--frozen".into());
+        }
+        if matches.is_present("locked") {
+            cargo_args.push("--locked".into());
+        }
+        if matches.is_present("offline") {
+            cargo_args.push("--offline".into());
+        }
+        if let Some(values) = matches.values_of_os("unstable_flags") {
+            cargo_args.push("-Z".into());
+            cargo_args.extend(values.map(ToOwned::to_owned));
+        }
     }
 
     // Set criterion home to (in descending order of preference):
@@ -679,12 +707,18 @@ Compilation can be customized with the `bench` profile in the manifest.
         additional_args.extend(args.map(ToOwned::to_owned));
     }
 
-    let configuration = FullConfig {
-        self_config,
-        cargo_args,
-        additional_args,
-    };
-    Ok(configuration)
+    if matches.is_present("precompiled_bins") {
+        return Ok(Config::Precompiled( PrecompiledConfig {
+            self_config,
+            pre_compiled_bins_path
+        }));
+    } else {
+        return Ok(Config::ToCompile( ToCompileConfig {
+            self_config,
+            cargo_args,
+            additional_args
+        }));
+    }
 }
 
 /// Load & parse the criterion.toml file (if present).
