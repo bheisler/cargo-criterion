@@ -15,9 +15,7 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest]
         rust:
-          - stable
-          - beta
-          - nightly
+          - 1.87 # stable release as of 2025-05-17
           - 1.46.0  # MSRV
 
     steps:
