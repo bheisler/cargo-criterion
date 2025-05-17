@@ -487,7 +487,7 @@ impl Report for Html {
 
                 self.generate_summary(
                     &subgroup_id,
-                    &*samples_with_function,
+                    &samples_with_function,
                     context,
                     formatter,
                     false,
@@ -507,13 +507,7 @@ impl Report for Html {
                 let subgroup_id =
                     BenchmarkId::new(group_id.to_owned(), None, Some(value_str.clone()), None);
 
-                self.generate_summary(
-                    &subgroup_id,
-                    &*samples_with_value,
-                    context,
-                    formatter,
-                    false,
-                );
+                self.generate_summary(&subgroup_id, &samples_with_value, context, formatter, false);
             }
         }
 
@@ -521,7 +515,7 @@ impl Report for Html {
 
         self.generate_summary(
             &BenchmarkId::new(group_id.to_owned(), None, None, None),
-            &*(all_data),
+            &all_data,
             context,
             formatter,
             true,
@@ -613,7 +607,7 @@ impl Report for Html {
 
             point_estimates
                 .into_iter()
-                .zip(upper_bounds.into_iter().zip(lower_bounds.into_iter()))
+                .zip(upper_bounds.into_iter().zip(lower_bounds))
                 .map(|(point, (upper, lower))| {
                     Some(ConfidenceInterval {
                         lower: format!("{:5.2}{}", lower, unit),
@@ -634,7 +628,7 @@ impl Report for Html {
             id,
             context: report_context,
             size: Some(Size(960, 640)),
-            is_thumbnail: false,
+            _is_thumbnail: false,
         };
 
         self.plotter.borrow_mut().history(
@@ -649,7 +643,7 @@ impl Report for Html {
 
         let intervals = point_estimates
             .into_iter()
-            .zip(upper_bounds.into_iter().zip(lower_bounds.into_iter()))
+            .zip(upper_bounds.into_iter().zip(lower_bounds))
             .map(|(point, (upper, lower))| ConfidenceInterval {
                 lower: format!("{:5.2}{}", lower, unit),
                 point: format!("{:5.2}{}", point, unit),
@@ -805,11 +799,11 @@ impl Html {
             id,
             context,
             size: None,
-            is_thumbnail: false,
+            _is_thumbnail: false,
         };
 
         let plot_ctx_small = PlotContext {
-            is_thumbnail: true,
+            _is_thumbnail: true,
             size: THUMBNAIL_SIZE,
             ..plot_ctx
         };
@@ -914,7 +908,7 @@ impl Html {
             id,
             context: report_context,
             size: None,
-            is_thumbnail: false,
+            _is_thumbnail: false,
         };
 
         try_else_return!(

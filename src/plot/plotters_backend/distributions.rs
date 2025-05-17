@@ -54,7 +54,7 @@ pub fn abs_distribution(
         ))
         .unwrap()
         .label("Bootstrap distribution")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.current_sample));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], colors.current_sample));
 
     chart
         .draw_series(AreaSeries::new(
@@ -78,7 +78,7 @@ pub fn abs_distribution(
         )))
         .unwrap()
         .label("Point estimate")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.current_sample));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], colors.current_sample));
 
     chart
         .configure_series_labels()
@@ -134,7 +134,7 @@ pub fn rel_distribution(
         ))
         .unwrap()
         .label("Bootstrap distribution")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.current_sample));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], colors.current_sample));
 
     chart
         .draw_series(AreaSeries::new(
@@ -158,7 +158,7 @@ pub fn rel_distribution(
         )))
         .unwrap()
         .label("Point estimate")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.current_sample));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], colors.current_sample));
 
     chart
         .draw_series(std::iter::once(Rectangle::new(

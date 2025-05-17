@@ -70,7 +70,7 @@ where
     /// Returns the number of data points per label
     ///
     /// - Time: `O(length)`
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::similar_names))]
+    #[allow(clippy::similar_names)]
     pub fn count(&self) -> (usize, usize, usize, usize, usize) {
         let (mut los, mut lom, mut noa, mut him, mut his) = (0, 0, 0, 0, 0);
 
@@ -111,7 +111,7 @@ where
     }
 }
 
-impl<'a, A> Deref for LabeledSample<'a, A>
+impl<A> Deref for LabeledSample<'_, A>
 where
     A: Float,
 {
@@ -123,13 +123,13 @@ where
 }
 
 // FIXME Use the `IndexGet` trait
-impl<'a, A> Index<usize> for LabeledSample<'a, A>
+impl<A> Index<usize> for LabeledSample<'_, A>
 where
     A: Float,
 {
     type Output = Label;
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::similar_names))]
+    #[allow(clippy::similar_names)]
     fn index(&self, i: usize) -> &Label {
         static LOW_SEVERE: Label = LowSevere;
         static LOW_MILD: Label = LowMild;
@@ -154,7 +154,7 @@ where
     }
 }
 
-impl<'a, 'b, A> IntoIterator for &'b LabeledSample<'a, A>
+impl<'a, A> IntoIterator for &LabeledSample<'a, A>
 where
     A: Float,
 {
@@ -175,13 +175,13 @@ where
     iter: slice::Iter<'a, A>,
 }
 
-impl<'a, A> Iterator for Iter<'a, A>
+impl<A> Iterator for Iter<'_, A>
 where
     A: Float,
 {
     type Item = (A, Label);
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::similar_names))]
+    #[allow(clippy::similar_names)]
     fn next(&mut self) -> Option<(A, Label)> {
         self.iter.next().map(|&x| {
             let (lost, lomt, himt, hist) = self.fences;

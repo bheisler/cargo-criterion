@@ -3,13 +3,12 @@
 //! This crate is a Cargo extension which can be used as a replacement for `cargo bench` when
 //! running [Criterion.rs] benchmarks.
 
-#![cfg_attr(
-    feature = "cargo-clippy",
+#![
     allow(
         clippy::just_underscores_and_digits, // Used in the stats code
         clippy::transmute_ptr_to_ptr, // Used in the stats code
     )
-)]
+]
 
 #[macro_use]
 extern crate serde_derive;
@@ -20,7 +19,7 @@ extern crate log;
 #[macro_use]
 mod macros_private;
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
+#[allow(clippy::too_many_arguments)]
 #[macro_use]
 mod plot;
 
@@ -98,7 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set up the reports. These receive notifications as the benchmarks proceed and generate output for the user.
     let cli_report = configure_cli_output(self_config);
     let bencher_report = crate::report::BencherReport;
-    let html_report = get_plotter(self_config)?.map(|plotter| crate::html::Html::new(plotter));
+    let html_report = get_plotter(self_config)?.map(crate::html::Html::new);
     let machine_report = message_formats::create_machine_report(self_config);
 
     let mut reports: Vec<&dyn crate::report::Report> = Vec::new();

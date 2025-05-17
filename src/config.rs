@@ -189,7 +189,7 @@ pub struct FullConfig {
 /// Call `cargo criterion` and parse the output to get the path to the target directory.
 fn get_target_directory_from_metadata() -> Result<PathBuf> {
     let out = Command::new("cargo")
-        .args(&["metadata", "--format-version", "1"])
+        .args(["metadata", "--format-version", "1"])
         .output()?;
 
     #[derive(Deserialize)]
@@ -204,7 +204,7 @@ fn get_target_directory_from_metadata() -> Result<PathBuf> {
 
 /// Parse the command-line arguments, load the criterion.toml config file, and generate a
 /// configuration object used for the rest of the run.
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::or_fun_call))]
+#[allow(clippy::or_fun_call)]
 pub fn configure() -> Result<FullConfig, anyhow::Error> {
     use clap::{App, AppSettings, Arg};
 

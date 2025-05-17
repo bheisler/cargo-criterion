@@ -279,15 +279,15 @@ impl From<BenchmarkConfig> for crate::analysis::BenchmarkConfig {
     fn from(other: BenchmarkConfig) -> Self {
         crate::analysis::BenchmarkConfig {
             confidence_level: other.confidence_level,
-            measurement_time: std::time::Duration::new(
+            _measurement_time: std::time::Duration::new(
                 other.measurement_time.secs,
                 other.measurement_time.nanos,
             ),
             noise_threshold: other.noise_threshold,
             nresamples: other.nresamples,
-            sample_size: other.sample_size,
+            _sample_size: other.sample_size,
             significance_level: other.significance_level,
-            warm_up_time: std::time::Duration::new(
+            _warm_up_time: std::time::Duration::new(
                 other.warm_up_time.secs,
                 other.warm_up_time.nanos,
             ),

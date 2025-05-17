@@ -98,7 +98,7 @@ impl Model {
         if !benchmark_path.is_file() {
             return Ok(());
         }
-        let mut benchmark_file = File::open(&benchmark_path)
+        let mut benchmark_file = File::open(benchmark_path)
             .with_context(|| format!("Failed to open benchmark file {:?}", benchmark_path))?;
         let benchmark_record: BenchmarkRecord = serde_cbor::from_reader(&mut benchmark_file)
             .with_context(|| format!("Failed to read benchmark file {:?}", benchmark_path))?;
@@ -243,7 +243,7 @@ impl Model {
         let dir = path!(&self.data_directory, id.as_directory_name());
 
         fn load_from(measurement_path: &Path) -> Result<SavedStatistics> {
-            let mut measurement_file = File::open(&measurement_path).with_context(|| {
+            let mut measurement_file = File::open(measurement_path).with_context(|| {
                 format!("Failed to open measurement file {:?}", measurement_path)
             })?;
             serde_cbor::from_reader(&mut measurement_file)
@@ -309,11 +309,6 @@ impl From<SavedBenchmarkId> for BenchmarkId {
             other.value_str,
             other.throughput,
         )
-    }
-}
-impl From<&SavedBenchmarkId> for BenchmarkId {
-    fn from(other: &SavedBenchmarkId) -> Self {
-        other.into()
     }
 }
 
