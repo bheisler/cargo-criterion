@@ -18,9 +18,9 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 /// - At least two data points in the set
 pub struct Data<'a, X, Y>(&'a [X], &'a [Y]);
 
-impl<'a, X, Y> Copy for Data<'a, X, Y> {}
+impl<X, Y> Copy for Data<'_, X, Y> {}
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::expl_impl_clone_on_copy))]
+#[allow(clippy::expl_impl_clone_on_copy)]
 impl<'a, X, Y> Clone for Data<'a, X, Y> {
     fn clone(&self) -> Data<'a, X, Y> {
         *self

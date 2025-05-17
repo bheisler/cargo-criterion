@@ -15,12 +15,12 @@ use std::time::Duration;
 #[derive(Debug, Clone)]
 pub struct BenchmarkConfig {
     pub confidence_level: f64,
-    pub measurement_time: Duration,
+    pub _measurement_time: Duration,
     pub noise_threshold: f64,
     pub nresamples: usize,
-    pub sample_size: usize,
+    pub _sample_size: usize,
     pub significance_level: f64,
-    pub warm_up_time: Duration,
+    pub _warm_up_time: Duration,
 }
 
 pub struct MeasuredValues<'a> {
@@ -74,7 +74,7 @@ pub(crate) fn analysis<'a>(
     };
 
     MeasurementData {
-        data: Data::new(&*iters, &*values),
+        data: Data::new(iters, values),
         avg_times: labeled_sample,
         absolute_estimates: estimates,
         distributions,
@@ -155,7 +155,7 @@ fn estimates(avg_times: &Sample<f64>, config: &BenchmarkConfig) -> (Distribution
 }
 
 // Common comparison procedure
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::type_complexity))]
+#[allow(clippy::type_complexity)]
 pub(crate) fn compare(
     new_avg_times: &Sample<f64>,
     old_values: &MeasuredValues,

@@ -13,7 +13,7 @@ where
     stage: Option<Vec<A>>,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::should_implement_trait))]
+#[allow(clippy::should_implement_trait)]
 impl<'a, A> Resamples<'a, A>
 where
     A: 'a + Float,
@@ -52,7 +52,7 @@ where
         }
 
         if let Some(ref v) = self.stage {
-            unsafe { mem::transmute::<&[_], _>(v) }
+            unsafe { mem::transmute::<&[A], &Sample<A>>(v) }
         } else {
             unreachable!();
         }

@@ -346,6 +346,7 @@ fn test_cargo_criterion_gnuplot() {
 }
 
 #[test]
+#[ignore = "This test is flaky and occasionally fails"]
 fn test_cargo_criterion_plotters() {
     let homedir = tempdir().unwrap();
     let (first_output, second_output) = execute(&["--plotting-backend=plotters"], homedir.path());

@@ -53,7 +53,7 @@ pub fn history(
         ))
         .unwrap()
         .label("Point estimate")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors.current_sample));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], colors.current_sample));
 
     let polygon_points: Vec<(f64, f64)> = confidence_interval
         .xs

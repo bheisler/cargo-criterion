@@ -4,14 +4,14 @@ use std::cell::RefCell;
 pub struct ValueFormatter<'a> {
     connection: RefCell<&'a mut Connection>,
 }
-impl<'a> ValueFormatter<'a> {
+impl ValueFormatter<'_> {
     pub fn new(conn: &mut Connection) -> ValueFormatter {
         ValueFormatter {
             connection: RefCell::new(conn),
         }
     }
 }
-impl<'a> ValueFormatter<'a> {
+impl ValueFormatter<'_> {
     pub fn format_value(&self, value: f64) -> String {
         self.connection
             .borrow_mut()
@@ -102,7 +102,7 @@ impl<'a> ValueFormatter<'a> {
         }
     }
 }
-impl<'a> Drop for ValueFormatter<'a> {
+impl Drop for ValueFormatter<'_> {
     fn drop(&mut self) {
         let _ = self
             .connection

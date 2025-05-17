@@ -53,7 +53,7 @@ impl BenchTarget {
             .args(additional_args)
             .env(dylib_path_envvar(), dylib_search_path(library_paths)?)
             .env("CRITERION_HOME", criterion_home)
-            .env("CARGO_CRITERION_PORT", &port.to_string())
+            .env("CARGO_CRITERION_PORT", port.to_string())
             .stdin(Stdio::null())
             .stdout(if redirect_stdout {
                 // If we're printing machine-readable output to stdout, output from the target might
@@ -246,10 +246,10 @@ impl BenchTarget {
                     let avg_values: Vec<f64> = iters
                         .iter()
                         .zip(times.iter())
-                        .map(|(iter, time)| *time / (*iter as f64))
+                        .map(|(iter, time)| *time / (*iter))
                         .collect();
 
-                    if times.iter().any(|&f| f == 0.0) {
+                    if times.contains(&0.0) {
                         error!("At least one measurement of benchmark {} took zero time per \
                         iteration. This should not be possible. If using iter_custom, please verify \
                         that your routine is correctly measured.", id.as_title());

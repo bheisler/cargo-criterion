@@ -41,7 +41,7 @@ pub struct MeasurementData<'a> {
     pub comparison: Option<ComparisonData>,
     pub throughput: Option<Throughput>,
 }
-impl<'a> MeasurementData<'a> {
+impl MeasurementData<'_> {
     pub fn iter_counts(&self) -> &Sample<f64> {
         self.data.x()
     }
@@ -113,9 +113,9 @@ impl BenchmarkId {
         throughput: Option<Throughput>,
     ) -> BenchmarkId {
         let full_id = match (&function_id, &value_str) {
-            (&Some(ref func), &Some(ref val)) => format!("{}/{}/{}", group_id, func, val),
-            (&Some(ref func), &None) => format!("{}/{}", group_id, func),
-            (&None, &Some(ref val)) => format!("{}/{}", group_id, val),
+            (Some(ref func), Some(ref val)) => format!("{}/{}/{}", group_id, func, val),
+            (Some(ref func), &None) => format!("{}/{}", group_id, func),
+            (&None, Some(ref val)) => format!("{}/{}", group_id, val),
             (&None, &None) => group_id.clone(),
         };
 
@@ -166,7 +166,9 @@ impl BenchmarkId {
 
     pub fn value_type(&self) -> Option<ValueType> {
         match self.throughput {
-            Some(Throughput::Bytes(_)) | Some(Throughput::BytesDecimal(_)) => Some(ValueType::Bytes),
+            Some(Throughput::Bytes(_)) | Some(Throughput::BytesDecimal(_)) => {
+                Some(ValueType::Bytes)
+            }
             Some(Throughput::Elements(_)) => Some(ValueType::Elements),
             None => self
                 .value_str
@@ -252,7 +254,6 @@ impl ReportContext {
 
 pub trait Report {
     fn benchmark_start(&self, _id: &BenchmarkId, _context: &ReportContext) {}
-    fn profile(&self, _id: &BenchmarkId, _context: &ReportContext, _profile_ns: f64) {}
     fn warmup(&self, _id: &BenchmarkId, _context: &ReportContext, _warmup_ns: f64) {}
     fn analysis(&self, _id: &BenchmarkId, _context: &ReportContext) {}
     fn measurement_start(
@@ -300,7 +301,7 @@ impl<'a> Reports<'a> {
         Reports { reports }
     }
 }
-impl<'a> Report for Reports<'a> {
+impl Report for Reports<'_> {
     fn benchmark_start(&self, id: &BenchmarkId, context: &ReportContext) {
         for report in &self.reports {
             report.benchmark_start(id, context);
@@ -417,7 +418,7 @@ impl CliReport {
     }
 
     //Passing a String is the common case here.
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_pass_by_value))]
+    #[allow(clippy::needless_pass_by_value)]
     fn print_overwritable(&self, s: String) {
         if self.enable_text_overwrite {
             self.last_line_len.set(s.len());
