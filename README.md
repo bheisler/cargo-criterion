@@ -69,9 +69,9 @@ For more details, see the [CONTRIBUTING.md file](https://github.com/bheisler/car
 ### Compatibility Policy
 
 cargo-criterion supports the last three stable minor releases of Rust. At time of
-writing, this means Rust 1.50 or later. Older versions may work, but are not tested or guaranteed.
+writing, this means Rust 1.85 or later. Older versions may work, but are not tested or guaranteed.
 
-Currently, the oldest version of Rust believed to work is 1.46. Future versions of cargo-criterion may
+Currently, the oldest version of Rust believed to work is 1.80. Future versions of cargo-criterion may
 break support for such old versions, and this will not be considered a breaking change. If you
 require cargo-criterion to work on old versions of Rust, you will need to stick to a
 specific patch version of cargo-criterion.
