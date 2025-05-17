@@ -249,7 +249,7 @@ impl BenchTarget {
                         .map(|(iter, time)| *time / (*iter))
                         .collect();
 
-                    if times.iter().any(|&f| f == 0.0) {
+                    if times.contains(&0.0) {
                         error!("At least one measurement of benchmark {} took zero time per \
                         iteration. This should not be possible. If using iter_custom, please verify \
                         that your routine is correctly measured.", id.as_title());
